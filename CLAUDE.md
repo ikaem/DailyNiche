@@ -115,6 +115,11 @@ Once the commit is made, I start the next step with its context.
 - **Reviewable** - each step should take <5 min to review
 - **Context matters** - always explain how it fits into the bigger picture
 
+### Testing (TDD is mandatory)
+- **TDD is required** - tests are not optional polish tacked on in Phase 8, they're written as each piece of logic is built.
+- **Tests + the code they cover can live in the same commit** - unlike other changes, you don't need to split "write test" and "write implementation" into two atomic commits. One commit covering both is fine, since they're really one logical unit of work.
+- Applies to repos, parsers, handlers - anything with real logic. Skeleton/wiring code (e.g. an empty `main()`) doesn't need tests.
+
 ---
 
 ## Task Checklist
