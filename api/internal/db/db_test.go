@@ -76,6 +76,30 @@ func TestMigrate_CreatesExpectedTables(t *testing.T) {
 	}
 }
 
+func TestOpen_InitializesAndMigratesInOneCall(t *testing.T) {
+	// given: a path to a database file that doesn't exist yet
+	path := filepath.Join(t.TempDir(), "test.db")
+
+	// when: we call Open
+	conn, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open() returned error: %v", err)
+	}
+	defer conn.Close()
+
+	// then: the database file exists and the schema has been applied
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected database file to exist at %s: %v", path, err)
+	}
+	for _, table := range []string{"feeds", "posts"} {
+		var name string
+		row := conn.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", table)
+		if err := row.Scan(&name); err != nil {
+			t.Errorf("expected table %q to exist: %v", table, err)
+		}
+	}
+}
+
 func TestMigrate_IsIdempotent(t *testing.T) {
 	// given: a database that has already been migrated once
 	conn, err := Init(":memory:")

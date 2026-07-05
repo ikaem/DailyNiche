@@ -185,6 +185,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Consider `pressly/goose` or hand-roll (simple enough at this scale)
   - PR: "feat: add lightweight database migration system"
 
+- [ ] **1.4: Add `.env`-based configuration loading** (DEFERRED - see trigger below)
+  - **Do NOT build this yet.** Right now `cmd/api/main.go` reads `DB_PATH` via `os.Getenv` and falls back to a hardcoded default (`"dailyniche.db"`) when unset. That default-in-code is a stopgap, not the final approach.
+  - **Trigger to actually build this:** before/during Phase 4.1, when `PORT` and CORS origin config get added alongside `DB_PATH` - once there's more than one env var, it's worth loading them properly instead of scattering `os.Getenv` + fallback logic across entry points.
+  - [ ] Add a `.env` file (gitignored) for local dev config, loaded at startup (e.g. via `github.com/joho/godotenv`, or hand-rolled)
+  - [ ] Remove the in-code default for `DB_PATH` - require it to be set explicitly (fail fast with a clear error if missing, rather than silently defaulting)
+  - [ ] Document required env vars in README (`DB_PATH`, later `PORT`, etc.)
+  - [ ] Production (Phase 9, Docker/Pi) sets real env vars via `docker-compose`'s `environment:` section, not the `.env` file - `.env` is a local dev convenience only
+  - PR: "feat: add .env-based configuration loading"
+
 ---
 
 ### PHASE 2: Feed Parsing Infrastructure (~2-3 hours)

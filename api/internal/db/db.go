@@ -29,3 +29,17 @@ func Migrate(conn *sql.DB) error {
 	_, err := conn.Exec(schemaSQL)
 	return err
 }
+
+// Open initializes and migrates the database in one call - the common path
+// entry points (cmd/api, cmd/fetcher) use to get a ready-to-use connection.
+func Open(path string) (*sql.DB, error) {
+	conn, err := Init(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := Migrate(conn); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}
