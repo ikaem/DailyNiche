@@ -170,6 +170,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Wire into cmd/api/main.go
   - PR: "feat: implement database initialization and migrations"
 
+- [ ] **1.3: Add lightweight DB migration system** (DEFERRED - see trigger below)
+  - **Do NOT build this yet.** `schema.sql` uses `CREATE TABLE IF NOT EXISTS`, which only works for a brand-new database - it silently does nothing to an existing one when columns are added/changed later (already happened once: adding `disabled_at` to `feeds`). Fine for now since no real database exists yet.
+  - **Trigger to actually build this:** once the fetcher (3.3) is running regularly and `dailyniche.db` holds real archived issues you don't want to lose. At that point "just delete the db and restart" stops being an acceptable fix for schema changes.
+  - [ ] Numbered migration files (e.g. `0001_init.sql`, `0002_add_disabled_at.sql`) instead of one full `schema.sql`
+  - [ ] `schema_migrations` table tracking which migrations have run
+  - [ ] On startup, apply any migrations not yet recorded, in order
+  - [ ] Consider `pressly/goose` or hand-roll (simple enough at this scale)
+  - PR: "feat: add lightweight database migration system"
+
 ---
 
 ### PHASE 2: Feed Parsing Infrastructure (~2-3 hours)
