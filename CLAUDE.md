@@ -417,6 +417,12 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 - **Below the fold:** Remaining posts, 4 columns, sorted by published_at
 - **Bottom:** 4 items, single-line text summary
 
+### Feed Deletion is a Soft Delete (via `disabled_at`)
+- Feeds are never hard-deleted. `feeds.disabled_at` is NULL for active feeds; deleting a feed via the dashboard sets `disabled_at` to the current date instead of removing the row.
+- Posts must survive feed removal so past issues never change (see schema.sql - no ON DELETE CASCADE on posts.feed_id, and the feed row itself is preserved).
+- The fetcher (Phase 3.3) must skip feeds where `disabled_at` is set when pulling new posts, but past issues keep resolving `feed_id` -> feed name normally since the row still exists.
+- `DeleteFeed` (Phase 3/4) should be implemented as `UPDATE feeds SET disabled_at = ? WHERE id = ?`, not a SQL `DELETE`.
+
 ### Timestamps & Timezones
 - **Always store and compare times in UTC.** When parsing a feed's published date, immediately convert with `.UTC()` before storing (e.g. `parsedTime.UTC()`).
 - Reason: Go's `time.Now()` defaults to local machine time, and SQLite has no native timestamp type - mixing local/UTC times causes subtle sorting/comparison bugs. Normalizing to UTC everywhere sidesteps this entirely.

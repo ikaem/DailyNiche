@@ -3,11 +3,12 @@ package models
 import "time"
 
 type Feed struct {
-	ID        int64
-	Name      string
-	URL       string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID         int64
+	Name       string
+	URL        string
+	DisabledAt *time.Time
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type Post struct {
