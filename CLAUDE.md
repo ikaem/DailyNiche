@@ -119,6 +119,7 @@ Once the commit is made, I start the next step with its context.
 - **TDD is required** - tests are not optional polish tacked on in Phase 8, they're written as each piece of logic is built.
 - **Tests + the code they cover can live in the same commit** - unlike other changes, you don't need to split "write test" and "write implementation" into two atomic commits. One commit covering both is fine, since they're really one logical unit of work.
 - Applies to repos, parsers, handlers - anything with real logic. Skeleton/wiring code (e.g. an empty `main()`) doesn't need tests.
+- **Structure every test body with given/when/then comments** marking the setup, the action under test, and the assertion. Go has no built-in BDD syntax, so these comments are how test intent stays readable at a glance.
 
 ---
 
@@ -169,7 +170,7 @@ Once the commit is made, I start the next step with its context.
 
 - [ ] **1.2: Implement database connection and migrations** (1.5 hours)
   - [ ] Create internal/db/db.go with Init() and Migrate()
-  - [ ] Add `github.com/mattn/go-sqlite3` to go.mod
+  - [ ] Add `modernc.org/sqlite` to go.mod
   - [ ] Test: database auto-creates on startup
   - [ ] Test: subsequent runs don't error
   - [ ] Wire into cmd/api/main.go
@@ -443,7 +444,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 - This app only needs relative recency (sort by newest, "last 24h" sizing) - we don't need to preserve each feed's original timezone for display.
 
 ### Go Dependencies (add as needed)
-- Phase 1: `github.com/mattn/go-sqlite3`
+- Phase 1: `modernc.org/sqlite` (pure Go, no CGO - simpler cross-compilation for the Pi later)
 - Phase 2: `github.com/mmcdole/gofeed`
 - Standard library for rest (net/http, encoding/json, log, time, database/sql)
 

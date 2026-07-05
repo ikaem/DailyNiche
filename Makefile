@@ -1,10 +1,11 @@
-.PHONY: help api fetcher fetcher-dry build build-api build-fetcher web-dev clean
+.PHONY: help api fetcher fetcher-dry test_api build build-api build-fetcher web-dev clean
 
 help:
 	@echo "DailyNiche - available commands:"
 	@echo "  make api            Run the API server (go run)"
 	@echo "  make fetcher        Run the feed fetcher once, verbose"
 	@echo "  make fetcher-dry    Run the feed fetcher once, dry-run (no DB writes)"
+	@echo "  make test_api       Run all API tests"
 	@echo "  make build          Build both api and fetcher binaries"
 	@echo "  make web-dev        Run the frontend dev server"
 	@echo "  make clean          Remove built binaries"
@@ -17,6 +18,9 @@ fetcher:
 
 fetcher-dry:
 	cd api && go run ./cmd/fetcher -once -verbose -dry-run
+
+test_api:
+	cd api && go test ./... -v
 
 build: build-api build-fetcher
 
