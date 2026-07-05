@@ -1,0 +1,529 @@
+# DailyNiche - Implementation Guide
+
+## Project Overview
+
+**DailyNiche** is a personal RSS magazine service that:
+- Reads RSS/Atom feeds you provide
+- Scans feeds once per day, storing new posts to a database
+- Presents a magazine-like UI with posts from those feeds
+- Allows browsing previous daily issues (archive)
+
+**Tech Stack:**
+- Backend: Go (REST API + CLI feed fetcher)
+- Frontend: SvelteKit
+- Database: SQLite
+- Monorepo structure (go/, web/, docs/)
+
+**Deployment Model:**
+- **Development:** Native (`go run`, `npm run dev`) on your local machine
+- **Eventually:** Docker + docker-compose on Raspberry Pi
+- **Remote Access:** Cloudflare Tunnel (free, no port forwarding needed)
+- **Current Focus:** Build the service first (Phases 0-8), deployment second (Phase 9)
+
+**Key Features (MVP):**
+- Dashboard to add/remove feeds (OPML or individual URLs)
+- Daily snapshot: magazine layout with visual hierarchy
+- Above the fold: top 10 posts (2 columns, time-based sizing)
+- Below the fold: next articles (4 columns)
+- Bottom section: summary list (1 column)
+- Archive of previous issues
+
+---
+
+## Monorepo Structure
+
+```
+DailyNiche/
+├── go/
+│   ├── cmd/
+│   │   ├── api/          # REST API server
+│   │   └── fetcher/      # Daily feed fetcher CLI
+│   ├── internal/
+│   │   ├── db/           # Database init & schema
+│   │   ├── models/       # Data structures
+│   │   ├── repos/        # Repository layer (CRUD)
+│   │   ├── feeds/        # Feed parsing
+│   │   └── handlers/     # HTTP handlers
+│   ├── go.mod
+│   └── go.sum
+├── web/
+│   ├── src/
+│   │   ├── routes/       # SvelteKit pages
+│   │   ├── lib/          # API client & utilities
+│   │   └── components/   # Svelte components
+│   ├── package.json
+│   └── svelte.config.js
+├── docs/
+│   ├── API.md            # API documentation
+│   └── ARCHITECTURE.md   # Architecture details
+├── .gitignore
+├── README.md
+└── CLAUDE.md             # This file
+```
+
+---
+
+## Commit Workflow
+
+**How we work on each task:**
+
+### Before Starting a Step
+I briefly outline what I'm about to do, including:
+1. **Task ID** (e.g., 1.1)
+2. **What** - the specific change or component being built
+3. **Context** - how this fits into the larger task/phase and why it matters
+4. **Where** - which file(s) will be modified
+
+Example: "Task 1.1 (Database Schema): Creating Feed and Post structs in internal/models/models.go. These are the core data structures that the database, repositories, and API will all use. This is foundational for Phase 1."
+
+### During the Work
+- I make focused, atomic changes using Edit/Write tools
+- One logical change = one commit
+- No "everything in one go" - break it into reviewable chunks
+- Each change is small enough that you can understand it quickly
+
+### After Changes
+I summarize:
+1. **What was done** - brief description of the change
+2. **Files modified** - which files were touched
+3. **The diff** - show you the actual changes (using `git diff` or `git status` output)
+
+### Code Review & Approval
+1. You review the changes in your IDE or via the diff I show
+2. You approve ("looks good") or request changes ("fix X" or "add Y")
+3. If approved, you make the commit:
+   ```bash
+   git add <files>
+   git commit -m "<message>"
+   ```
+   OR ask me to commit it
+
+### Then We Repeat
+Once the commit is made, I start the next step with its context.
+
+### Commit Message Format
+- **Prefix:** `feat:` (feature), `fix:` (bug fix), `docs:` (documentation), `refactor:`, `test:`, `chore:`
+- **Message:** Clear, active voice, explains the *what* not the *why* (why goes in PR description)
+- Examples:
+  - `feat: add Feed and Post model structs`
+  - `feat: implement feed repository CRUD operations`
+  - `test: add unit tests for feed parser`
+
+### Rules
+- **No auto-commits** - I never commit without your explicit approval
+- **Atomic changes** - each commit is one logical piece
+- **Reviewable** - each step should take <5 min to review
+- **Context matters** - always explain how it fits into the bigger picture
+
+---
+
+## Task Checklist
+
+### PHASE 0: Project Initialization (~1.5 hours)
+
+- [ ] **0.1: Initialize monorepo structure** (30 min)
+  - [ ] Create folder hierarchy (go/, web/, docs/)
+  - [ ] Initialize Git repo with .gitignore
+  - [ ] Create root README.md with project overview
+  - [ ] Create docs/ARCHITECTURE.md
+  - PR: "chore: initialize monorepo structure"
+
+- [ ] **0.2: Initialize Go module and project layout** (30 min)
+  - [ ] Run `go mod init github.com/karlo/dailyniche`
+  - [ ] Create cmd/api/main.go and cmd/fetcher/main.go skeletons
+  - [ ] Create internal/models/models.go
+  - [ ] Verify: `go build ./cmd/api` works
+  - PR: "chore: initialize Go project structure"
+
+- [ ] **0.3: Initialize SvelteKit project** (30 min)
+  - [ ] Create web/ with SvelteKit scaffolding
+  - [ ] `npm install` and `npm run dev` works
+  - [ ] Configure API_URL env var
+  - [ ] Basic landing page with "Coming soon"
+  - PR: "chore: initialize SvelteKit project"
+
+---
+
+### PHASE 1: Database & Core Models (~2-3 hours)
+
+- [ ] **1.1: Design and implement database schema** (1 hour)
+  - [ ] Create internal/db/schema.sql with:
+    - `feeds` table: id, name, url, created_at, updated_at
+    - `posts` table: id, feed_id, title, url, content_summary, published_at, fetched_at, guid (unique), created_at
+    - Indexes on feed_id, published_at, fetched_at
+  - [ ] Create internal/models/models.go with Feed and Post structs
+  - [ ] Document schema in docs/ARCHITECTURE.md
+  - PR: "feat: define database schema and models"
+
+- [ ] **1.2: Implement database connection and migrations** (1.5 hours)
+  - [ ] Create internal/db/db.go with Init() and Migrate()
+  - [ ] Add `github.com/mattn/go-sqlite3` to go.mod
+  - [ ] Test: database auto-creates on startup
+  - [ ] Test: subsequent runs don't error
+  - [ ] Wire into cmd/api/main.go
+  - PR: "feat: implement database initialization and migrations"
+
+---
+
+### PHASE 2: Feed Parsing Infrastructure (~2-3 hours)
+
+- [ ] **2.1: Implement feed parser** (1.5 hours)
+  - [ ] Add `github.com/mmcdole/gofeed` to go.mod
+  - [ ] Create internal/feeds/parser.go:
+    - `ParseFeed(url string)` - fetch and parse RSS/Atom/JSON
+    - `ExtractItems(feed)` - convert to Post structs
+  - [ ] Handle missing fields gracefully
+  - [ ] Write unit tests with sample feeds
+  - PR: "feat: implement feed parser with gofeed"
+
+- [ ] **2.2: Create CLI fetcher scaffold** (1 hour)
+  - [ ] Create cmd/fetcher/main.go with:
+    - `-once` flag (run and exit)
+    - `-verbose` flag
+    - `-dry-run` flag
+    - Database initialization
+    - Proper exit codes
+  - [ ] Verify: `go build ./cmd/fetcher` works
+  - PR: "feat: scaffold fetcher CLI"
+
+---
+
+### PHASE 3: Repository Layer (Data Access) (~2-3 hours)
+
+- [ ] **3.1: Implement feed repository** (1.5 hours)
+  - [ ] Create internal/repos/feed_repo.go with:
+    - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed
+  - [ ] Use prepared statements (prevent SQL injection)
+  - [ ] Write unit tests for each operation
+  - PR: "feat: implement feed repository CRUD operations"
+
+- [ ] **3.2: Implement post repository** (1.5 hours)
+  - [ ] Create internal/repos/post_repo.go with:
+    - CreatePost (with duplicate detection via GUID)
+    - ListPostsByDate (for fetching today's posts)
+    - ListPostsByFeed (filter by feed)
+    - DeletePostsByDate (for cleanup)
+  - [ ] Write tests including duplicate detection
+  - PR: "feat: implement post repository CRUD operations"
+
+- [ ] **3.3: Integrate fetcher with repositories** (2 hours)
+  - [ ] Update cmd/fetcher/main.go:
+    - Load feeds from DB
+    - Fetch each feed using parser
+    - Store posts using post repo
+    - Log progress/errors
+    - Skip invalid feeds, continue
+  - [ ] Implement dry-run mode
+  - [ ] Write integration test
+  - [ ] Test: can call repeatedly without issues
+  - PR: "feat: integrate feed fetcher with database"
+
+---
+
+### PHASE 4: REST API (~2-3 hours)
+
+- [ ] **4.1: Set up HTTP server and middleware** (1.5 hours)
+  - [ ] Create cmd/api/main.go with:
+    - HTTP server on port 8080 (configurable via env)
+    - CORS middleware (allow localhost:5173)
+    - Logging middleware
+    - Error response formatting
+    - Health check: GET /health
+  - [ ] Use standard library net/http
+  - [ ] Test: `/health` returns 200 with `{"status":"ok"}`
+  - PR: "feat: initialize HTTP API server"
+
+- [ ] **4.2: Implement feed management API endpoints** (1.5 hours)
+  - [ ] Create internal/handlers/feeds_handler.go:
+    - GET /api/feeds - list all
+    - POST /api/feeds - create (validate URL, name)
+    - DELETE /api/feeds/:id - delete
+  - [ ] Proper status codes (201, 204, 400, 404)
+  - [ ] Write httptest tests
+  - [ ] Wire routes in cmd/api/main.go
+  - PR: "feat: implement feed management API endpoints"
+
+- [ ] **4.3: Implement posts API endpoint** (1.5 hours)
+  - [ ] Create internal/handlers/posts_handler.go:
+    - GET /api/posts - query params: date (YYYY-MM-DD, default today), feed_id (optional)
+    - Return posts with feed info, sorted by published_at
+  - [ ] Write tests
+  - [ ] Wire route in cmd/api/main.go
+  - PR: "feat: implement posts API endpoint"
+
+---
+
+### PHASE 5: Cron & Scheduling (~2 hours)
+
+- [ ] **5.1: Optimize fetcher for cron** (1 hour)
+  - [ ] Ensure cmd/fetcher runs cleanly in one shot
+  - [ ] Document cron setup: `0 3 * * * /path/to/fetcher -once`
+  - [ ] Verify: posts get today's date
+  - PR: "docs: prepare fetcher for cron scheduling"
+
+- [ ] **5.2: Add error handling and observability** (1 hour)
+  - [ ] Add structured logging to fetcher
+  - [ ] Log: start/end time, feeds processed, posts added, errors
+  - [ ] Write logs to file and stdout
+  - [ ] Graceful shutdown on SIGTERM
+  - [ ] Update README with cron setup instructions
+  - PR: "feat: add logging and error handling to fetcher"
+
+---
+
+### PHASE 6: Frontend - Basic Setup (~2 hours)
+
+- [ ] **6.1: Create API client library** (1 hour)
+  - [ ] Create web/src/lib/api.js:
+    - Base URL from env
+    - getFeeds(), addFeed(name, url), deleteFeed(id)
+    - getPostsByDate(date), getPostsToday()
+    - Error handling
+  - [ ] Create web/src/lib/stores.js (optional, if using Svelte stores)
+  - PR: "feat: create API client library"
+
+- [ ] **6.2: Create main page layout and navigation** (1 hour)
+  - [ ] Update web/src/routes/+layout.svelte:
+    - Navigation header with logo
+    - Links to /posts and /feeds
+    - Basic styling
+  - [ ] Create web/src/routes/+page.svelte:
+    - Fetch posts for today on mount
+    - Display loading/error states
+    - Render posts as simple list for now
+  - PR: "feat: create main page layout and navigation"
+
+---
+
+### PHASE 7: Frontend - Magazine Layout (~3 hours)
+
+- [ ] **7.1: Above-the-fold section (top 10, 2 columns)** (1.5 hours)
+  - [ ] Create web/src/components/AboveTheFold.svelte:
+    - Takes top 10 posts
+    - 2-column grid layout
+    - Time-based sizing: newer posts larger, older smaller
+    - Show: headline, feed name, publish time
+    - Click opens article link
+  - [ ] Update +page.svelte to use it
+  - PR: "feat: implement above-the-fold magazine section"
+
+- [ ] **7.2: Below-the-fold section (4 columns)** (1 hour)
+  - [ ] Create web/src/components/BelowTheFold.svelte:
+    - Takes posts 11-N
+    - 4-column grid, smaller cards
+    - Sorted by publish time
+    - Clearly differentiated from above-fold
+  - [ ] Update +page.svelte to use it
+  - PR: "feat: implement below-the-fold section"
+
+- [ ] **7.3: Bottom section (1 column, single-line text)** (45 min)
+  - [ ] Create web/src/components/BottomNews.svelte:
+    - Next 4 posts as text list
+    - Format: "[Feed] > Title" or similar
+    - Links work, text truncated if needed
+  - [ ] Update +page.svelte to use it
+  - PR: "feat: implement bottom news section"
+
+- [ ] **7.4: Feed management UI** (1.5 hours)
+  - [ ] Create web/src/components/FeedManager.svelte:
+    - List feeds, add form, delete buttons
+    - Success/error feedback
+  - [ ] Create web/src/routes/feeds/+page.svelte
+  - [ ] Connect to API
+  - [ ] Test: add, delete, immediate UI update
+  - PR: "feat: implement feed management UI"
+
+---
+
+### PHASE 8: Polish & Optimization (~3 hours)
+
+- [ ] **8.1: Responsive design and mobile optimization** (1.5 hours)
+  - [ ] Test on: 375px (mobile), 768px (tablet), 1024px+ (desktop)
+  - [ ] Adjust grid columns:
+    - Mobile: above-fold 1 col, below-fold 2 cols, bottom 1 col
+    - Tablet: above-fold 2 col, below-fold 3 cols, bottom 1 col
+    - Desktop: 2, 4, 1 as designed
+  - [ ] Ensure touch-friendly (48px+ tap targets)
+  - PR: "feat: implement responsive design"
+
+- [ ] **8.2: Performance and caching** (1.5 hours)
+  - [ ] API: Add Cache-Control headers
+  - [ ] Frontend: Implement client-side caching
+  - [ ] Lazy load images, use srcset
+  - [ ] Minimize bundle
+  - [ ] Lighthouse score >= 80
+  - PR: "perf: optimize performance and caching"
+
+- [ ] **8.3: Testing and documentation** (2 hours)
+  - [ ] Add unit tests (>70% coverage for internal/)
+  - [ ] Add integration tests for API endpoints
+  - [ ] Write docs/API.md (endpoints, request/response formats)
+  - [ ] Update README with:
+    - Setup instructions (backend & frontend)
+    - How to add feeds
+    - Cron job setup
+    - Development workflow
+  - [ ] Remove TODO comments from code
+  - PR: "docs: complete testing and documentation"
+
+---
+
+## Dependency Graph
+
+```
+CRITICAL PATH (do these in order):
+0.1 -> 0.2 -> 1.1 -> 1.2 -> 2.2 -> 3.1 -> 3.2 -> 3.3 -> 4.1 -> 4.2 -> 4.3
+
+PARALLEL (after 1.1):
+2.1 (parser) -> 3.3 (fetcher integration)
+
+THEN FRONTEND:
+0.3 -> 6.1 -> 6.2 -> 7.1, 7.2, 7.3 (can parallelize)
+              7.4 (parallel with 7.1-7.3)
+
+THEN POLISH:
+8.1, 8.2, 8.3 (can parallelize)
+
+OPTIONAL FOR MVP (DEFER):
+5.1, 5.2 (just use system cron locally until later)
+
+DEPLOYMENT (PHASE 9 - DO LAST):
+Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
+(Only tackle this after service is working end-to-end locally)
+```
+
+**Next task:** Start with 0.1 (monorepo setup). It takes 30 min and unblocks everything.
+
+---
+
+## Key Implementation Notes
+
+### Database Schema
+- **GUID field** in posts: prevents duplicates (RSS feeds may republish)
+- **fetched_at**: tracks when post was discovered, separate from published_at
+- **Simple indexes**: on feed_id, published_at, fetched_at for query performance
+
+### Layout Logic
+- **Above the fold:** Top 10 posts, 2 columns
+  - **Time-based sizing:** posts from last 24h larger; older posts smaller proportionally
+  - Posts sorted by feed discovery order, not by feed source
+- **Below the fold:** Remaining posts, 4 columns, sorted by published_at
+- **Bottom:** 4 items, single-line text summary
+
+### Go Dependencies (add as needed)
+- Phase 1: `github.com/mattn/go-sqlite3`
+- Phase 2: `github.com/mmcdole/gofeed`
+- Standard library for rest (net/http, encoding/json, log, time, database/sql)
+
+### Development Workflow
+1. **Backend first** (Phases 0-5): build locally, test with curl/Postman
+2. **Frontend second** (Phases 6-7): connect to running API
+3. **Polish last** (Phase 8): optimize and refine
+4. **Each PR = one task**, clear scope, mergeable in 2-3 hour session
+
+### Deployment Model (Deferred to Phase 9)
+
+**Development Phase (Phases 0-8):**
+- Run locally: `go run ./cmd/api` and `npm run dev`
+- SQLite database file: `dailyniche.db` in repo root (local)
+- No Docker, no deployment overhead - pure development focus
+
+**Deployment Phase (Phase 9 - do this last):**
+- **Target:** Raspberry Pi running 24/7
+- **Access:** Cloudflare Tunnel (free, secure, no port forwarding)
+- **Containerization:** Docker + docker-compose on Pi only
+- **Database:** SQLite on Pi (single machine), daily backups optional
+- **Automation:** Cron job for daily feed fetching
+
+**Why defer deployment?**
+- Focus on building a working service first
+- Deployment decisions don't affect core architecture
+- Docker can be added without code changes (just Dockerfile + compose)
+- Cloudflare Tunnel is independent of your code
+
+**When to move to Phase 9:**
+- Service is complete and working locally (Phase 8 done)
+- You're ready to run it 24/7 on Pi
+- You want remote access via a permanent URL
+
+---
+
+### PHASE 9: Deployment to Raspberry Pi (~2-3 hours) [DEFER UNTIL LATER]
+
+This phase is optional and should only be done after Phase 8 is complete. Focus on building the service first.
+
+- [ ] **9.1: Create Dockerfile and docker-compose.yml** (1 hour)
+  - [ ] Create `Dockerfile` for Go API service:
+    - Multi-stage build (build in one image, run in smaller image)
+    - Copy binary and assets
+    - Expose port 8080
+  - [ ] Create `docker-compose.yml`:
+    - Service for API (golang image or built binary)
+    - Volume mount for SQLite database (persistence)
+    - Environment variables for config (API_URL, etc.)
+    - Port mapping (8080 -> 8080)
+  - [ ] Test locally: `docker-compose up` and verify API works
+  - [ ] Document build/run process
+  - PR: "feat: add Docker support for deployment"
+
+- [ ] **9.2: Set up Raspberry Pi and Cloudflare Tunnel** (1.5 hours)
+  - [ ] Install Docker and docker-compose on Pi
+  - [ ] Clone repo to Pi (or use scp to copy files)
+  - [ ] Install Cloudflare Tunnel client (`cloudflared`) on Pi
+  - [ ] Create Cloudflare account (free) and configure tunnel:
+    - Authenticate: `cloudflared tunnel login`
+    - Create tunnel: `cloudflared tunnel create dailyniche`
+    - Route traffic to localhost:8080
+    - Assign domain: `https://dailyniche.yourdomain.com` (or cloudflare subdomain)
+  - [ ] Test: Access from another device via the public URL
+  - PR: "docs: document Raspberry Pi deployment and Cloudflare Tunnel setup"
+
+- [ ] **9.3: Set up daily cron job on Pi** (1 hour)
+  - [ ] SSH into Pi
+  - [ ] Create cron entry to run fetcher daily:
+    ```bash
+    0 3 * * * cd /path/to/DailyNiche && go/cmd/fetcher -once -verbose
+    ```
+    Or if using Docker:
+    ```bash
+    0 3 * * * docker-compose -f /path/to/docker-compose.yml exec api /app/fetcher -once -verbose
+    ```
+  - [ ] Test: manually run the command, verify posts are fetched
+  - [ ] Set up log rotation (optional, logs don't grow too fast for personal use)
+  - [ ] Document cron setup in README
+  - PR: "docs: document cron job setup for Pi"
+
+- [ ] **9.4: Backup strategy** (optional, 30 min)
+  - [ ] Decide: daily backup of SQLite to cloud storage (e.g., rsync to a backup server, or tar + upload)
+  - [ ] Create backup script
+  - [ ] Add cron entry to run backup daily
+  - [ ] Document backup procedure
+  - PR: "docs: add backup strategy" (optional)
+
+---
+
+## Running Locally (Development)
+
+### Backend
+```bash
+cd go
+go run ./cmd/api          # Start API server (port 8080)
+go run ./cmd/fetcher -once -verbose  # Run feed fetcher once
+```
+
+### Frontend
+```bash
+cd web
+npm install
+npm run dev               # Start dev server (port 5173)
+```
+
+### Database
+- SQLite database file: `dailyniche.db` (auto-created)
+- Reset: delete `dailyniche.db` and restart API server
+
+---
+
+## Completed Tasks
+
+(Mark off as you complete each PR)
