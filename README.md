@@ -27,7 +27,7 @@ Most RSS readers overwhelm you with infinite feeds. DailyNiche gives you a curat
 cd DailyNiche
 
 # Backend
-cd go
+cd api
 go mod download
 
 # Frontend
@@ -39,13 +39,13 @@ npm install
 
 **Terminal 1 - API server:**
 ```bash
-cd go
+cd api
 go run ./cmd/api
 ```
 
 **Terminal 2 - Feed fetcher (one-shot):**
 ```bash
-cd go
+cd api
 go run ./cmd/fetcher -once -verbose
 ```
 
@@ -61,7 +61,7 @@ Visit `http://localhost:5173` in your browser.
 
 See [CLAUDE.md](./CLAUDE.md) for the full implementation guide and task breakdown.
 
-- `go/` - Backend: REST API and feed fetcher CLI
+- `api/` - Backend: REST API and feed fetcher CLI
 - `web/` - Frontend: SvelteKit magazine UI
 - `docs/` - Architecture and API documentation
 

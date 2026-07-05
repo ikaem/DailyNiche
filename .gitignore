@@ -46,5 +46,5 @@ dailyniche.db
 Thumbs.db
 
 # Build artifacts
-/go/cmd/api/api
-/go/cmd/fetcher/fetcher
+/api/cmd/api/api
+/api/cmd/fetcher/fetcher

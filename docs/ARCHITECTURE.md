@@ -74,7 +74,7 @@ User (browser)
 
 ```
 DailyNiche/
-├── go/
+├── api/
 │   ├── cmd/
 │   │   ├── api/
 │   │   │   └── main.go        # REST API server entry point

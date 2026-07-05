@@ -34,7 +34,7 @@
 
 ```
 DailyNiche/
-├── go/
+├── api/
 │   ├── cmd/
 │   │   ├── api/          # REST API server
 │   │   └── fetcher/      # Daily feed fetcher CLI
@@ -141,6 +141,13 @@ Once the commit is made, I start the next step with its context.
   - [ ] Configure API_URL env var
   - [ ] Basic landing page with "Coming soon"
   - PR: "chore: initialize SvelteKit project"
+
+- [ ] **0.4: Create Makefile for development commands** (15 min)
+  - [ ] Create Makefile in project root
+  - [ ] Add targets: `make api`, `make fetcher`, `make web-dev`, `make build-all`
+  - [ ] Document common development tasks
+  - [ ] Make it easy to start all services at once if needed
+  - PR: "chore: add Makefile for development workflow"
 
 ---
 
@@ -372,7 +379,7 @@ Once the commit is made, I start the next step with its context.
 
 ```
 CRITICAL PATH (do these in order):
-0.1 -> 0.2 -> 1.1 -> 1.2 -> 2.2 -> 3.1 -> 3.2 -> 3.3 -> 4.1 -> 4.2 -> 4.3
+0.1 -> 0.2 -> 0.3 -> 0.4 -> 1.1 -> 1.2 -> 2.2 -> 3.1 -> 3.2 -> 3.3 -> 4.1 -> 4.2 -> 4.3
 
 PARALLEL (after 1.1):
 2.1 (parser) -> 3.3 (fetcher integration)
@@ -409,6 +416,11 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
   - Posts sorted by feed discovery order, not by feed source
 - **Below the fold:** Remaining posts, 4 columns, sorted by published_at
 - **Bottom:** 4 items, single-line text summary
+
+### Timestamps & Timezones
+- **Always store and compare times in UTC.** When parsing a feed's published date, immediately convert with `.UTC()` before storing (e.g. `parsedTime.UTC()`).
+- Reason: Go's `time.Now()` defaults to local machine time, and SQLite has no native timestamp type - mixing local/UTC times causes subtle sorting/comparison bugs. Normalizing to UTC everywhere sidesteps this entirely.
+- This app only needs relative recency (sort by newest, "last 24h" sizing) - we don't need to preserve each feed's original timezone for display.
 
 ### Go Dependencies (add as needed)
 - Phase 1: `github.com/mattn/go-sqlite3`
@@ -482,7 +494,7 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
   - [ ] SSH into Pi
   - [ ] Create cron entry to run fetcher daily:
     ```bash
-    0 3 * * * cd /path/to/DailyNiche && go/cmd/fetcher -once -verbose
+    0 3 * * * cd /path/to/DailyNiche && api/cmd/fetcher -once -verbose
     ```
     Or if using Docker:
     ```bash
@@ -506,7 +518,7 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
 
 ### Backend
 ```bash
-cd go
+cd api
 go run ./cmd/api          # Start API server (port 8080)
 go run ./cmd/fetcher -once -verbose  # Run feed fetcher once
 ```
