@@ -127,53 +127,53 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 0: Project Initialization (~1.5 hours)
 
-- [ ] **0.1: Initialize monorepo structure** (30 min)
-  - [ ] Create folder hierarchy (go/, web/, docs/)
-  - [ ] Initialize Git repo with .gitignore
-  - [ ] Create root README.md with project overview
-  - [ ] Create docs/ARCHITECTURE.md
+- [x] **0.1: Initialize monorepo structure** (30 min)
+  - [x] Create folder hierarchy (go/, web/, docs/)
+  - [x] Initialize Git repo with .gitignore
+  - [x] Create root README.md with project overview
+  - [x] Create docs/ARCHITECTURE.md
   - PR: "chore: initialize monorepo structure"
 
-- [ ] **0.2: Initialize Go module and project layout** (30 min)
-  - [ ] Run `go mod init github.com/karlo/dailyniche`
-  - [ ] Create cmd/api/main.go and cmd/fetcher/main.go skeletons
-  - [ ] Create internal/models/models.go
-  - [ ] Verify: `go build ./cmd/api` works
+- [x] **0.2: Initialize Go module and project layout** (30 min)
+  - [x] Run `go mod init github.com/karlo/dailyniche`
+  - [x] Create cmd/api/main.go and cmd/fetcher/main.go skeletons
+  - [x] Create internal/models/models.go
+  - [x] Verify: `go build ./cmd/api` works
   - PR: "chore: initialize Go project structure"
+  - Note: directory renamed from `go/` to `api/` for clarity (purpose-based, not language-based naming)
 
-- [ ] **0.3: Initialize SvelteKit project** (30 min)
+- [ ] **0.3: Initialize SvelteKit project** (30 min) - SKIPPED FOR NOW, revisit once backend has a working end-to-end slice
   - [ ] Create web/ with SvelteKit scaffolding
   - [ ] `npm install` and `npm run dev` works
   - [ ] Configure API_URL env var
   - [ ] Basic landing page with "Coming soon"
   - PR: "chore: initialize SvelteKit project"
 
-- [ ] **0.4: Create Makefile for development commands** (15 min)
-  - [ ] Create Makefile in project root
-  - [ ] Add targets: `make api`, `make fetcher`, `make web-dev`, `make build-all`
-  - [ ] Document common development tasks
-  - [ ] Make it easy to start all services at once if needed
+- [x] **0.4: Create Makefile for development commands** (15 min)
+  - [x] Create Makefile in project root
+  - [x] Add targets: `make api`, `make fetcher`, `make fetcher-dry`, `make test_api`, `make build`, `make web-dev`
+  - [x] Document common development tasks
   - PR: "chore: add Makefile for development workflow"
 
 ---
 
 ### PHASE 1: Database & Core Models (~2-3 hours)
 
-- [ ] **1.1: Design and implement database schema** (1 hour)
-  - [ ] Create internal/db/schema.sql with:
-    - `feeds` table: id, name, url, created_at, updated_at
+- [x] **1.1: Design and implement database schema** (1 hour)
+  - [x] Create internal/db/schema.sql with:
+    - `feeds` table: id, name, url, disabled_at (soft delete), created_at, updated_at
     - `posts` table: id, feed_id, title, url, content_summary, published_at, fetched_at, guid (unique), created_at
     - Indexes on feed_id, published_at, fetched_at
-  - [ ] Create internal/models/models.go with Feed and Post structs
-  - [ ] Document schema in docs/ARCHITECTURE.md
+  - [x] Create internal/models/models.go with Feed and Post structs
+  - [x] Document schema in docs/ARCHITECTURE.md
   - PR: "feat: define database schema and models"
 
-- [ ] **1.2: Implement database connection and migrations** (1.5 hours)
-  - [ ] Create internal/db/db.go with Init() and Migrate()
-  - [ ] Add `modernc.org/sqlite` to go.mod
-  - [ ] Test: database auto-creates on startup
-  - [ ] Test: subsequent runs don't error
-  - [ ] Wire into cmd/api/main.go
+- [x] **1.2: Implement database connection and migrations** (1.5 hours)
+  - [x] Create internal/db/db.go with Init(), Migrate(), and Open() (Init+Migrate combined)
+  - [x] Add `modernc.org/sqlite` to go.mod (pure Go, no CGO)
+  - [x] Test: database auto-creates on startup
+  - [x] Test: subsequent runs don't error
+  - [x] Wire into cmd/api/main.go
   - PR: "feat: implement database initialization and migrations"
 
 - [ ] **1.3: Add lightweight DB migration system** (DEFERRED - see trigger below)
@@ -193,6 +193,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Document required env vars in README (`DB_PATH`, later `PORT`, etc.)
   - [ ] Production (Phase 9, Docker/Pi) sets real env vars via `docker-compose`'s `environment:` section, not the `.env` file - `.env` is a local dev convenience only
   - PR: "feat: add .env-based configuration loading"
+
+- [ ] **1.5: Minimal HTTP server (learning exercise)** (30-45 min)
+  - **Goal:** stand up the simplest possible Go HTTP server using only the standard library (`net/http`) - no router libraries, no middleware - to learn the core primitives before Phase 4 introduces CORS, logging middleware, and multiple resource handlers on top.
+  - Pulled forward ahead of Phase 4 so `cmd/api` actually behaves like a server (listens on a port, respondable via `curl`) instead of just running the DB setup and exiting.
+  - [ ] Add a `/health` handler in `internal/handlers/health_handler.go` returning `{"status":"ok"}`
+  - [ ] Wire it into `cmd/api/main.go` with `http.HandleFunc` + `http.ListenAndServe` (`PORT` env var, default 8080)
+  - [ ] Test the handler with `net/http/httptest` (no need to spin up a real server/port for the test)
+  - [ ] Verify: `curl localhost:8080/health` returns 200 and the JSON body
+  - PR: "feat: add minimal HTTP server with health check"
 
 ---
 
@@ -423,7 +432,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Start with 0.1 (monorepo setup). It takes 30 min and unblocks everything.
+**Next task:** 2.1 (feed parser) or 2.2 (fetcher CLI scaffold) - Phase 0 and Phase 1 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
 
 ---
 
@@ -569,3 +578,9 @@ npm run dev               # Start dev server (port 5173)
 ## Completed Tasks
 
 (Mark off as you complete each PR)
+
+- [x] 0.1: Initialize monorepo structure
+- [x] 0.2: Initialize Go module and project layout
+- [x] 0.4: Create Makefile for development commands
+- [x] 1.1: Design and implement database schema
+- [x] 1.2: Implement database connection and migrations

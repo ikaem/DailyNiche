@@ -2,9 +2,11 @@ package main
 
 import (
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/karlo/dailyniche/internal/db"
+	"github.com/karlo/dailyniche/internal/handlers"
 )
 
 func main() {
@@ -19,5 +21,21 @@ func main() {
 	}
 	defer conn.Close()
 
-	log.Printf("DailyNiche API server: database ready at %s", dbPath)
+	log.Printf("database ready at %s", dbPath)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	// HandleFunc registers into net/http's global DefaultServeMux, not a mux
+	// we control. Fine for this one learning-exercise route; Phase 4.1 will
+	// switch to an explicit http.NewServeMux() once middleware/more routes
+	// are added, to avoid relying on shared global state.
+	http.HandleFunc("/health", handlers.Health)
+
+	log.Printf("DailyNiche API server listening on :%s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatalf("server failed: %v", err)
+	}
 }
