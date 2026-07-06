@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug API server",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/api/cmd/api",
+      "cwd": "${workspaceFolder}/api",
+      "env": {
+        "DB_PATH": "dailyniche.db",
+        "PORT": "8080"
+      }
+    }
+  ]
+}
