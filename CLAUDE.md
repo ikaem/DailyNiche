@@ -194,14 +194,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Production (Phase 9, Docker/Pi) sets real env vars via `docker-compose`'s `environment:` section, not the `.env` file - `.env` is a local dev convenience only
   - PR: "feat: add .env-based configuration loading"
 
-- [ ] **1.5: Minimal HTTP server (learning exercise)** (30-45 min)
+- [x] **1.5: Minimal HTTP server (learning exercise)** (30-45 min)
   - **Goal:** stand up the simplest possible Go HTTP server using only the standard library (`net/http`) - no router libraries, no middleware - to learn the core primitives before Phase 4 introduces CORS, logging middleware, and multiple resource handlers on top.
   - Pulled forward ahead of Phase 4 so `cmd/api` actually behaves like a server (listens on a port, respondable via `curl`) instead of just running the DB setup and exiting.
-  - [ ] Add a `/health` handler in `internal/handlers/health_handler.go` returning `{"status":"ok"}`
-  - [ ] Wire it into `cmd/api/main.go` with `http.HandleFunc` + `http.ListenAndServe` (`PORT` env var, default 8080)
-  - [ ] Test the handler with `net/http/httptest` (no need to spin up a real server/port for the test)
-  - [ ] Verify: `curl localhost:8080/health` returns 200 and the JSON body
+  - [x] Add a `/health` handler in `internal/handlers/health_handler.go` returning `{"status":"ok"}`
+  - [x] Wire it into `cmd/api/main.go` with `http.HandleFunc` + `http.ListenAndServe` (`PORT` env var, default 8080)
+  - [x] Test the handler with `net/http/httptest` (no need to spin up a real server/port for the test)
+  - [x] Verify: `curl localhost:8080/health` returns 200 and the JSON body
   - PR: "feat: add minimal HTTP server with health check"
+  - Note: uses net/http's global DefaultServeMux for now (fine for one route); Phase 4.1 will switch to an explicit http.NewServeMux()
 
 ---
 
@@ -215,6 +216,7 @@ Once the commit is made, I start the next step with its context.
   - [ ] Handle missing fields gracefully
   - [ ] Write unit tests with sample feeds
   - PR: "feat: implement feed parser with gofeed"
+  - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
 
 - [ ] **2.2: Create CLI fetcher scaffold** (1 hour)
   - [ ] Create cmd/fetcher/main.go with:
@@ -584,3 +586,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 0.4: Create Makefile for development commands
 - [x] 1.1: Design and implement database schema
 - [x] 1.2: Implement database connection and migrations
+- [x] 1.5: Minimal HTTP server (learning exercise) - /health route, real server via ListenAndServe
