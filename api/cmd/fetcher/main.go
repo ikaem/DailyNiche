@@ -2,7 +2,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"log"
+	"os"
+
+	"github.com/karlo/dailyniche/internal/db"
 )
 
 // Config holds the fetcher's command-line options.
@@ -27,5 +30,28 @@ func parseFlags(args []string) (Config, error) {
 }
 
 func main() {
-	fmt.Println("DailyNiche Feed Fetcher")
+	cfg, err := parseFlags(os.Args[1:])
+	if err != nil {
+		log.Printf("failed to parse flags: %v", err)
+		os.Exit(2)
+	}
+
+	if cfg.Verbose {
+		log.Printf("starting fetcher (once=%v, dry-run=%v)", cfg.Once, cfg.DryRun)
+	}
+
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "dailyniche.db"
+	}
+
+	conn, err := db.Open(dbPath)
+	if err != nil {
+		log.Printf("failed to open database: %v", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	log.Printf("fetcher: database ready at %s", dbPath)
+	// Feed fetching wired in Task 3.3, once feed/post repos exist.
 }

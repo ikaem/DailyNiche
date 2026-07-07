@@ -259,6 +259,7 @@ Once the commit is made, I start the next step with its context.
   - [ ] Write integration test
   - [ ] Test: can call repeatedly without issues
   - PR: "feat: integrate feed fetcher with database"
+  - TODO: extract `main()`'s logic into a testable `run(args []string) int` (returns an exit code instead of calling `os.Exit` directly). Not worth it yet (Task 2.2's `main()` is trivial straight-line composition of already-tested pieces), but this task adds real branching (per-feed error handling, dry-run behavior) - that's the point where a testable `run()` starts paying for itself.
 
 ---
 
