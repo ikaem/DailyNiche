@@ -232,12 +232,13 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 3: Repository Layer (Data Access) (~2-3 hours)
 
-- [ ] **3.1: Implement feed repository** (1.5 hours)
-  - [ ] Create internal/repos/feed_repo.go with:
+- [x] **3.1: Implement feed repository** (1.5 hours)
+  - [x] Create internal/repos/feed_repo.go with:
     - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed
-  - [ ] Use prepared statements (prevent SQL injection)
-  - [ ] Write unit tests for each operation
+  - [x] Use prepared statements (prevent SQL injection)
+  - [x] Write unit tests for each operation
   - PR: "feat: implement feed repository CRUD operations"
+  - Note: DeleteFeed is a soft delete (sets disabled_at), per the "Feed Deletion is a Soft Delete" note above
 
 - [ ] **3.2: Implement post repository** (1.5 hours)
   - [ ] Create internal/repos/post_repo.go with:
@@ -435,7 +436,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 3.1 (feed repository) or 3.2 (post repository) - Phases 0-2 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
+**Next task:** 3.2 (post repository) - Phases 0-2 and Task 3.1 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
 
 ---
 
@@ -590,3 +591,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 1.5: Minimal HTTP server (learning exercise) - /health route, real server via ListenAndServe
 - [x] 2.1: Implement feed parser - ParseFeed + ExtractItems with GUID/content/date fallbacks
 - [x] 2.2: Create CLI fetcher scaffold - flags, DB init, exit codes
+- [x] 3.1: Implement feed repository - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed (soft delete)

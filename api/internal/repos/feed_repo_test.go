@@ -119,3 +119,94 @@ func TestListFeeds_OrdersByName(t *testing.T) {
 		t.Errorf("expected [Alpha Blog, Zebra Blog], got [%s, %s]", feeds[0].Name, feeds[1].Name)
 	}
 }
+
+func TestGetFeed_ReturnsMatchingFeed(t *testing.T) {
+	// given: a created feed
+	conn := newTestDB(t)
+	id, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we get it by ID
+	f, err := GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("GetFeed() returned error: %v", err)
+	}
+
+	// then: the returned feed matches what was created
+	if f.ID != id {
+		t.Errorf("expected ID %d, got %d", id, f.ID)
+	}
+	if f.Name != "Sample Blog" {
+		t.Errorf("expected name %q, got %q", "Sample Blog", f.Name)
+	}
+}
+
+func TestGetFeed_ReturnsErrorWhenNotFound(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we get a feed ID that doesn't exist
+	_, err := GetFeed(conn, 999)
+
+	// then: it returns an error
+	if err == nil {
+		t.Fatal("expected an error for a nonexistent feed, got nil")
+	}
+}
+
+func TestUpdateFeed_UpdatesNameAndURL(t *testing.T) {
+	// given: a created feed
+	conn := newTestDB(t)
+	id, err := CreateFeed(conn, "Old Name", "https://old.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	f, err := GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("GetFeed() returned error: %v", err)
+	}
+
+	// when: we change its name/url and save
+	f.Name = "New Name"
+	f.URL = "https://new.example.com/feed.xml"
+	if err := UpdateFeed(conn, f); err != nil {
+		t.Fatalf("UpdateFeed() returned error: %v", err)
+	}
+
+	// then: re-fetching shows the updated fields
+	updated, err := GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("GetFeed() returned error: %v", err)
+	}
+	if updated.Name != "New Name" {
+		t.Errorf("expected name %q, got %q", "New Name", updated.Name)
+	}
+	if updated.URL != "https://new.example.com/feed.xml" {
+		t.Errorf("expected url %q, got %q", "https://new.example.com/feed.xml", updated.URL)
+	}
+}
+
+func TestDeleteFeed_SoftDeletesWithoutRemovingRow(t *testing.T) {
+	// given: a created feed
+	conn := newTestDB(t)
+	id, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we delete it
+	if err := DeleteFeed(conn, id); err != nil {
+		t.Fatalf("DeleteFeed() returned error: %v", err)
+	}
+
+	// then: the row still exists (GetFeed succeeds), but disabled_at is set
+	f, err := GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("expected the feed row to still exist after DeleteFeed, GetFeed() returned error: %v", err)
+	}
+	if f.DisabledAt == nil {
+		t.Error("expected DisabledAt to be set after DeleteFeed")
+	}
+}
