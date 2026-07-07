@@ -240,14 +240,15 @@ Once the commit is made, I start the next step with its context.
   - PR: "feat: implement feed repository CRUD operations"
   - Note: DeleteFeed is a soft delete (sets disabled_at), per the "Feed Deletion is a Soft Delete" note above
 
-- [ ] **3.2: Implement post repository** (1.5 hours)
-  - [ ] Create internal/repos/post_repo.go with:
+- [x] **3.2: Implement post repository** (1.5 hours)
+  - [x] Create internal/repos/post_repo.go with:
     - CreatePost (with duplicate detection via GUID)
     - ListPostsByDate (for fetching today's posts)
     - ListPostsByFeed (filter by feed)
     - DeletePostsByDate (for cleanup)
-  - [ ] Write tests including duplicate detection
+  - [x] Write tests including duplicate detection
   - PR: "feat: implement post repository CRUD operations"
+  - Note: CreatePost returns the new row's int64 ID (0 = skipped duplicate) rather than a bool, so callers get the ID for free on success. DeletePostsByDate is for deliberate manual cleanup only, never called by the normal fetch/serve flow.
 
 - [ ] **3.3: Integrate fetcher with repositories** (2 hours)
   - [ ] Update cmd/fetcher/main.go:
@@ -436,7 +437,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 3.2 (post repository) - Phases 0-2 and Task 3.1 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
+**Next task:** 3.3 (integrate fetcher with repositories) - Phases 0-2 and Tasks 3.1-3.2 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
 
 ---
 
@@ -592,3 +593,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 2.1: Implement feed parser - ParseFeed + ExtractItems with GUID/content/date fallbacks
 - [x] 2.2: Create CLI fetcher scaffold - flags, DB init, exit codes
 - [x] 3.1: Implement feed repository - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed (soft delete)
+- [x] 3.2: Implement post repository - CreatePost (GUID dedup), ListPostsByDate, ListPostsByFeed, DeletePostsByDate
