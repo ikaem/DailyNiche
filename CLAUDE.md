@@ -208,24 +208,24 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 2: Feed Parsing Infrastructure (~2-3 hours)
 
-- [ ] **2.1: Implement feed parser** (1.5 hours)
-  - [ ] Add `github.com/mmcdole/gofeed` to go.mod
-  - [ ] Create internal/feeds/parser.go:
+- [x] **2.1: Implement feed parser** (1.5 hours)
+  - [x] Add `github.com/mmcdole/gofeed` to go.mod
+  - [x] Create internal/feeds/parser.go:
     - `ParseFeed(url string)` - fetch and parse RSS/Atom/JSON
     - `ExtractItems(feed)` - convert to Post structs
-  - [ ] Handle missing fields gracefully
-  - [ ] Write unit tests with sample feeds
+  - [x] Handle missing fields gracefully
+  - [x] Write unit tests with sample feeds
   - PR: "feat: implement feed parser with gofeed"
   - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
 
-- [ ] **2.2: Create CLI fetcher scaffold** (1 hour)
-  - [ ] Create cmd/fetcher/main.go with:
+- [x] **2.2: Create CLI fetcher scaffold** (1 hour)
+  - [x] Create cmd/fetcher/main.go with:
     - `-once` flag (run and exit)
     - `-verbose` flag
     - `-dry-run` flag
     - Database initialization
     - Proper exit codes
-  - [ ] Verify: `go build ./cmd/fetcher` works
+  - [x] Verify: `go build ./cmd/fetcher` works
   - PR: "feat: scaffold fetcher CLI"
 
 ---
@@ -435,7 +435,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 2.1 (feed parser) or 2.2 (fetcher CLI scaffold) - Phase 0 and Phase 1 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
+**Next task:** 3.1 (feed repository) or 3.2 (post repository) - Phases 0-2 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
 
 ---
 
@@ -588,3 +588,5 @@ npm run dev               # Start dev server (port 5173)
 - [x] 1.1: Design and implement database schema
 - [x] 1.2: Implement database connection and migrations
 - [x] 1.5: Minimal HTTP server (learning exercise) - /health route, real server via ListenAndServe
+- [x] 2.1: Implement feed parser - ParseFeed + ExtractItems with GUID/content/date fallbacks
+- [x] 2.2: Create CLI fetcher scaffold - flags, DB init, exit codes
