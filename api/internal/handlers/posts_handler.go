@@ -2,10 +2,94 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/karlo/dailyniche/internal/repos"
 )
+
+// PostResponse is the JSON shape returned for each post, enriched with the
+// owning feed's name so API consumers don't need a separate lookup. FeedID
+// is kept alongside FeedName, not replaced by it - callers still need the
+// numeric ID for filtering (feed_id query param) or any future per-feed
+// features.
+type PostResponse struct {
+	ID             int64     `json:"id"`
+	FeedID         int64     `json:"feed_id"`
+	FeedName       string    `json:"feed_name"`
+	Title          string    `json:"title"`
+	URL            string    `json:"url"`
+	ContentSummary string    `json:"content_summary"`
+	PublishedAt    time.Time `json:"published_at"`
+	FetchedAt      time.Time `json:"fetched_at"`
+}
+
+// Posts returns an http.HandlerFunc for GET /api/posts, backed by conn.
+// Query params: date (YYYY-MM-DD, defaults to today in UTC), feed_id
+// (optional).
+func Posts(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		date, err := parseDateParam(r.URL.Query().Get("date"))
+		if err != nil {
+			http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+
+		// *int64, not int64: a plain int64 has no way to represent "no filter
+		// requested" - its zero value (0) would be indistinguishable from
+		// "filter by feed ID 0". nil means "no filter"; a non-nil pointer
+		// means "filter by this ID".
+		var feedIDFilter *int64
+		if raw := r.URL.Query().Get("feed_id"); raw != "" {
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil {
+				http.Error(w, "invalid feed_id", http.StatusBadRequest)
+				return
+			}
+			feedIDFilter = &id
+		}
+
+		// TODO: when feed_id is given, this fetches every post for the date
+		// and filters in Go below, rather than pushing the feed_id filter
+		// down into the SQL query. Fine at our scale (a day's posts is a
+		// small number); revisit if per-day post volume ever grows enough
+		// for this to matter (e.g. add a ListPostsByDateAndFeed repo func).
+		posts, err := repos.ListPostsByDate(conn, date)
+		if err != nil {
+			http.Error(w, "failed to list posts", http.StatusInternalServerError)
+			return
+		}
+
+		feedNames, err := feedNameLookup(conn)
+		if err != nil {
+			http.Error(w, "failed to list feeds", http.StatusInternalServerError)
+			return
+		}
+
+		responses := make([]PostResponse, 0, len(posts))
+		for _, p := range posts {
+			if feedIDFilter != nil && p.FeedID != *feedIDFilter {
+				continue
+			}
+			responses = append(responses, PostResponse{
+				ID:             p.ID,
+				FeedID:         p.FeedID,
+				FeedName:       feedNames[p.FeedID],
+				Title:          p.Title,
+				URL:            p.URL,
+				ContentSummary: p.ContentSummary,
+				PublishedAt:    p.PublishedAt,
+				FetchedAt:      p.FetchedAt,
+			})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(responses)
+	}
+}
 
 // parseDateParam parses raw (the "date" query param) as YYYY-MM-DD.
 //

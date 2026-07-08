@@ -2,10 +2,16 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/karlo/dailyniche/internal/db"
+	"github.com/karlo/dailyniche/internal/models"
 	"github.com/karlo/dailyniche/internal/repos"
 )
 
@@ -18,6 +24,19 @@ func newTestDB(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { conn.Close() })
 	return conn
+}
+
+// newTestPost returns a Post referencing feedID, fetched at fetchedAt.
+func newTestPost(feedID int64, guid string, fetchedAt time.Time) *models.Post {
+	return &models.Post{
+		FeedID:         feedID,
+		Title:          "Sample Post",
+		URL:            "https://example.com/sample-post",
+		ContentSummary: "A sample post summary.",
+		PublishedAt:    fetchedAt,
+		FetchedAt:      fetchedAt,
+		GUID:           guid,
+	}
 }
 
 func TestParseDateParam_DefaultsToTodayWhenEmpty(t *testing.T) {
@@ -93,5 +112,167 @@ func TestFeedNameLookup_ReturnsNamesByID(t *testing.T) {
 	}
 	if names[disabledID] != "Disabled Blog" {
 		t.Errorf("expected disabled feed's name to still resolve, got %q", names[disabledID])
+	}
+}
+
+func TestPosts_ReturnsPostsForToday(t *testing.T) {
+	// given: a feed with one post fetched today
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:today-post", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts with no query params
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: it responds 200 with the post, enriched with its feed's name
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].FeedID != feedID {
+		t.Errorf("expected feed_id %d, got %d", feedID, got[0].FeedID)
+	}
+	if got[0].FeedName != "Tech Blog" {
+		t.Errorf("expected feed_name %q, got %q", "Tech Blog", got[0].FeedName)
+	}
+}
+
+func TestPosts_FiltersByDateParam(t *testing.T) {
+	// given: posts fetched on two different days
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	onTargetID, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:on-target", time.Date(2024, 3, 15, 9, 0, 0, 0, time.UTC)))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:other-day", time.Date(2024, 3, 16, 9, 0, 0, 0, time.UTC))); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request posts for the target date
+	req := httptest.NewRequest(http.MethodGet, "/api/posts?date=2024-03-15", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: only the matching post is returned
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].ID != onTargetID {
+		t.Errorf("expected post id %d, got %d", onTargetID, got[0].ID)
+	}
+}
+
+func TestPosts_FiltersByFeedIDParam(t *testing.T) {
+	// given: posts from two different feeds, fetched today
+	conn := newTestDB(t)
+	feedA, err := repos.CreateFeed(conn, "Feed A", "https://a.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	feedB, err := repos.CreateFeed(conn, "Feed B", "https://b.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	now := time.Now().UTC()
+	if _, err := repos.CreatePost(conn, newTestPost(feedA, "urn:uuid:feed-a-post", now)); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedB, "urn:uuid:feed-b-post", now)); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request posts filtered to feed A
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/posts?feed_id=%d", feedA), nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: only feed A's post is returned
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].FeedID != feedA {
+		t.Errorf("expected feed_id %d, got %d", feedA, got[0].FeedID)
+	}
+}
+
+func TestPosts_ReturnsBadRequestForInvalidDate(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we request with a malformed date
+	req := httptest.NewRequest(http.MethodGet, "/api/posts?date=not-a-date", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestPosts_ReturnsBadRequestForInvalidFeedID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we request with a non-numeric feed_id
+	req := httptest.NewRequest(http.MethodGet, "/api/posts?feed_id=abc", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestPosts_ReturnsEmptyArrayWhenNoPosts(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we request posts
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: it responds 200 with an empty JSON array, not null
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	// Checking the raw string here on purpose, not decoding into
+	// []PostResponse: this test exists specifically to prove the JSON
+	// literally renders as [], not null. If we decoded it first and just
+	// checked len(got) == 0, that would pass identically whether the wire
+	// format was [] or null - json.Unmarshal treats both as "empty slice"
+	// when decoding into a slice type. Checking the raw string is the only
+	// way to prove the wire format itself is [], which is exactly the
+	// guarantee the responses := make([]PostResponse, 0, len(posts))
+	// pre-allocation in posts_handler.go is meant to provide.
+	if body := strings.TrimSpace(rec.Body.String()); body != "[]" {
+		t.Errorf("expected empty JSON array \"[]\", got %q", body)
 	}
 }
