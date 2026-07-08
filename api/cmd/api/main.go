@@ -33,6 +33,7 @@ func main() {
 	// switch to an explicit http.NewServeMux() once middleware/more routes
 	// are added, to avoid relying on shared global state.
 	http.HandleFunc("/health", handlers.Health)
+	http.HandleFunc("/api/posts", handlers.Posts(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
