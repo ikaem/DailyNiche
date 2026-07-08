@@ -288,13 +288,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Wire routes in cmd/api/main.go
   - PR: "feat: implement feed management API endpoints"
 
-- [ ] **4.3: Implement posts API endpoint** (1.5 hours)
-  - [ ] Create internal/handlers/posts_handler.go:
+- [x] **4.3: Implement posts API endpoint** (1.5 hours)
+  - [x] Create internal/handlers/posts_handler.go:
     - GET /api/posts - query params: date (YYYY-MM-DD, default today), feed_id (optional)
     - Return posts with feed info, sorted by published_at
-  - [ ] Write tests
-  - [ ] Wire route in cmd/api/main.go
+  - [x] Write tests
+  - [x] Wire route in cmd/api/main.go
   - PR: "feat: implement posts API endpoint"
+  - Note: verified live end-to-end with a new dev-only `cmd/seed` tool (see `make seed`/`make db-reset` below) - seeds sample feeds/posts across today and yesterday for manual API/frontend testing without needing real RSS feeds.
+  - TODO (minor): feed_id filtering currently fetches all of a date's posts then filters in Go, rather than pushing the filter into the SQL query. Fine at our scale; revisit if per-day post volume ever grows enough to matter.
 
 ---
 
@@ -437,7 +439,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Phase 4 (REST API) - 4.1 (CORS/logging middleware, extending the minimal server from 1.5), 4.2 (feed management endpoints), or 4.3 (posts endpoint - the last piece needed for the original "ping it, get today's news" vertical slice). Phases 0-3 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
+**Next task:** 4.1 (CORS/logging middleware, extending the minimal server from 1.5) or 4.2 (feed management endpoints). Phases 0-3 and Task 4.3 are done - the original "ping it, get today's news" vertical slice now works end-to-end, verified live with the `cmd/seed` dev tool. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit whenever ready to build the UI.
 
 ---
 
@@ -565,7 +567,10 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
 cd api
 go run ./cmd/api          # Start API server (port 8080)
 go run ./cmd/fetcher -once -verbose  # Run feed fetcher once
+go run ./cmd/seed         # Seed sample feeds/posts for manual testing (dev only)
 ```
+
+Or via Makefile from the repo root: `make api`, `make fetcher`, `make seed`, `make db-reset`.
 
 ### Frontend
 ```bash
@@ -595,3 +600,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 3.1: Implement feed repository - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed (soft delete)
 - [x] 3.2: Implement post repository - CreatePost (GUID dedup), ListPostsByDate, ListPostsByFeed, DeletePostsByDate
 - [x] 3.3: Integrate fetcher with repositories - real fetch loop, dry-run, per-feed error isolation, disabled-feed skipping, run() extracted for testability
+- [x] 4.3: Implement posts API endpoint - GET /api/posts (date + feed_id filters), feed name enrichment, cmd/seed dev tool for manual verification
