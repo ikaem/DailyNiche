@@ -2,12 +2,32 @@ package repos
 
 import (
 	"database/sql"
+	"errors"
 	"time"
+
+	"modernc.org/sqlite"
 
 	"github.com/karlo/dailyniche/internal/models"
 )
 
-// CreateFeed inserts a new feed and returns its assigned ID.
+// ErrDuplicateURL is returned by CreateFeed when a feed with the same URL
+// already exists (feeds.url is UNIQUE).
+var ErrDuplicateURL = errors.New("feed url already exists")
+
+// sqliteConstraintUniqueCode is SQLite's stable, public extended result
+// code for a UNIQUE constraint violation specifically (SQLITE_CONSTRAINT_
+// UNIQUE) - see sqlite.org/rescode.html. SQLite errors carry a primary code
+// (e.g. generic SQLITE_CONSTRAINT = 19) and often a more specific extended
+// code (SQLITE_CONSTRAINT_UNIQUE = 2067); the driver surfaces the extended
+// one, which is what a UNIQUE violation actually reports here. Referenced
+// by value rather than importing modernc.org/sqlite/lib (an internal
+// implementation detail of the driver) just for one constant.
+const sqliteConstraintUniqueCode = 2067
+
+// CreateFeed inserts a new feed and returns its assigned ID. Returns
+// ErrDuplicateURL, not a raw driver error, if a feed with this URL already
+// exists - callers check with errors.Is(err, ErrDuplicateURL), never
+// needing to know a SQLite driver is involved at all.
 func CreateFeed(conn *sql.DB, name, url string) (int64, error) {
 	now := time.Now().UTC()
 	result, err := conn.Exec(
@@ -15,6 +35,15 @@ func CreateFeed(conn *sql.DB, name, url string) (int64, error) {
 		name, url, now, now,
 	)
 	if err != nil {
+		// sqliteErr: destination pointer for errors.As to fill in below.
+		var sqliteErr *sqlite.Error
+		// errors.As checks whether err *or anything it wraps* is a
+		// *sqlite.Error, unlike a raw type assertion which only matches err
+		// itself. Code() still must be checked - this type covers every
+		// SQLite failure kind, not just constraint violations.
+		if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqliteConstraintUniqueCode {
+			return 0, ErrDuplicateURL
+		}
 		return 0, err
 	}
 	return result.LastInsertId()

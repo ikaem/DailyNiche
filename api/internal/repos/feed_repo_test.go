@@ -1,6 +1,7 @@
 package repos
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -17,6 +18,23 @@ func TestCreateFeed_InsertsAndReturnsID(t *testing.T) {
 	// then: it returns a positive, assigned ID
 	if id <= 0 {
 		t.Errorf("expected a positive ID, got %d", id)
+	}
+}
+
+func TestCreateFeed_ReturnsErrDuplicateURLForExistingURL(t *testing.T) {
+	// given: a feed already created with a given URL
+	conn := newTestDB(t)
+	const url = "https://example.com/feed.xml"
+	if _, err := CreateFeed(conn, "Sample Blog", url); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we create another feed with the same URL
+	_, err := CreateFeed(conn, "Different Name", url)
+
+	// then: it returns ErrDuplicateURL, not a raw driver error
+	if !errors.Is(err, ErrDuplicateURL) {
+		t.Errorf("expected ErrDuplicateURL, got %v", err)
 	}
 }
 
