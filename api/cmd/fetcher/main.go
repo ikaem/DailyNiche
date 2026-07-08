@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/karlo/dailyniche/internal/db"
+	"github.com/karlo/dailyniche/internal/feeds"
+	"github.com/karlo/dailyniche/internal/repos"
 )
 
 // Config holds the fetcher's command-line options.
@@ -52,7 +54,58 @@ func run(args []string, dbPath string) int {
 	defer conn.Close()
 
 	log.Printf("fetcher: database ready at %s", dbPath)
-	// Feed fetching wired in Task 3.3, once feed/post repos exist.
+
+	feedList, err := repos.ListFeeds(conn)
+	if err != nil {
+		log.Printf("failed to list feeds: %v", err)
+		return 1
+	}
+
+	// newCount: posts actually inserted (CreatePost returned a positive ID)
+	var newCount int
+	// dupCount: posts already stored on a previous run, skipped via the
+	// GUID uniqueness/dedup logic (CreatePost returned 0, no error)
+	var dupCount int
+	// errCount: feeds that failed to parse, or posts that failed to store -
+	// each is logged individually and counted here, but doesn't abort the run
+	var errCount int
+	for _, feed := range feedList {
+		if feed.DisabledAt != nil {
+			continue
+		}
+
+		if cfg.Verbose {
+			log.Printf("fetching feed %q (%s)", feed.Name, feed.URL)
+		}
+
+		parsed, err := feeds.ParseFeed(feed.URL)
+		if err != nil {
+			log.Printf("skipping feed %q: %v", feed.Name, err)
+			errCount++
+			continue
+		}
+
+		for _, post := range feeds.ExtractItems(parsed, feed.ID) {
+			if cfg.DryRun {
+				log.Printf("[dry-run] would store post %q (%s)", post.Title, post.GUID)
+				continue
+			}
+
+			id, err := repos.CreatePost(conn, &post)
+			if err != nil {
+				log.Printf("failed to store post %q: %v", post.Title, err)
+				errCount++
+				continue
+			}
+			if id > 0 {
+				newCount++
+			} else {
+				dupCount++
+			}
+		}
+	}
+
+	log.Printf("fetcher done: %d new, %d duplicates, %d errors", newCount, dupCount, errCount)
 	return 0
 }
 

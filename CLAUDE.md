@@ -250,18 +250,18 @@ Once the commit is made, I start the next step with its context.
   - PR: "feat: implement post repository CRUD operations"
   - Note: CreatePost returns the new row's int64 ID (0 = skipped duplicate) rather than a bool, so callers get the ID for free on success. DeletePostsByDate is for deliberate manual cleanup only, never called by the normal fetch/serve flow.
 
-- [ ] **3.3: Integrate fetcher with repositories** (2 hours)
-  - [ ] Update cmd/fetcher/main.go:
+- [x] **3.3: Integrate fetcher with repositories** (2 hours)
+  - [x] Update cmd/fetcher/main.go:
     - Load feeds from DB
     - Fetch each feed using parser
     - Store posts using post repo
     - Log progress/errors
     - Skip invalid feeds, continue
-  - [ ] Implement dry-run mode
-  - [ ] Write integration test
-  - [ ] Test: can call repeatedly without issues
+  - [x] Implement dry-run mode
+  - [x] Write integration test
+  - [x] Test: can call repeatedly without issues
   - PR: "feat: integrate feed fetcher with database"
-  - TODO: extract `main()`'s logic into a testable `run(args []string) int` (returns an exit code instead of calling `os.Exit` directly). Not worth it yet (Task 2.2's `main()` is trivial straight-line composition of already-tested pieces), but this task adds real branching (per-feed error handling, dry-run behavior) - that's the point where a testable `run()` starts paying for itself.
+  - Note: `main()`'s logic was extracted into a testable `run(args []string, dbPath string) int` (returns an exit code instead of calling `os.Exit` directly) as part of this task, per the earlier TODO - this is exactly the point where the real branching logic (per-feed error handling, dry-run, disabled-feed skipping) made a testable `run()` worth it.
 
 ---
 
@@ -437,7 +437,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 3.3 (integrate fetcher with repositories) - Phases 0-2 and Tasks 3.1-3.2 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
+**Next task:** Phase 4 (REST API) - 4.1 (CORS/logging middleware, extending the minimal server from 1.5), 4.2 (feed management endpoints), or 4.3 (posts endpoint - the last piece needed for the original "ping it, get today's news" vertical slice). Phases 0-3 are done. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit once posts can be fetched and served end-to-end.
 
 ---
 
@@ -594,3 +594,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 2.2: Create CLI fetcher scaffold - flags, DB init, exit codes
 - [x] 3.1: Implement feed repository - CreateFeed, ListFeeds, GetFeed, UpdateFeed, DeleteFeed (soft delete)
 - [x] 3.2: Implement post repository - CreatePost (GUID dedup), ListPostsByDate, ListPostsByFeed, DeletePostsByDate
+- [x] 3.3: Integrate fetcher with repositories - real fetch loop, dry-run, per-feed error isolation, disabled-feed skipping, run() extracted for testability
