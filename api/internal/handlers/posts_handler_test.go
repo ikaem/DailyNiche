@@ -1,9 +1,24 @@
 package handlers
 
 import (
+	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/karlo/dailyniche/internal/db"
+	"github.com/karlo/dailyniche/internal/repos"
 )
+
+// newTestDB returns a migrated in-memory database for testing.
+func newTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	conn, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open test database: %v", err)
+	}
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
 
 func TestParseDateParam_DefaultsToTodayWhenEmpty(t *testing.T) {
 	// given: no date string
@@ -47,5 +62,36 @@ func TestParseDateParam_ReturnsErrorForInvalidDate(t *testing.T) {
 	// then: it returns an error
 	if err == nil {
 		t.Fatal("expected an error for an invalid date, got nil")
+	}
+}
+
+func TestFeedNameLookup_ReturnsNamesByID(t *testing.T) {
+	// given: two feeds, one of them later disabled
+	conn := newTestDB(t)
+	activeID, err := repos.CreateFeed(conn, "Active Blog", "https://active.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	disabledID, err := repos.CreateFeed(conn, "Disabled Blog", "https://disabled.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if err := repos.DeleteFeed(conn, disabledID); err != nil {
+		t.Fatalf("DeleteFeed() returned error: %v", err)
+	}
+
+	// when: we build the lookup
+	names, err := feedNameLookup(conn)
+	if err != nil {
+		t.Fatalf("feedNameLookup() returned error: %v", err)
+	}
+
+	// then: both feeds resolve, including the disabled one - past issues
+	// must still show correct feed names even after a feed is removed
+	if names[activeID] != "Active Blog" {
+		t.Errorf("expected %q, got %q", "Active Blog", names[activeID])
+	}
+	if names[disabledID] != "Disabled Blog" {
+		t.Errorf("expected disabled feed's name to still resolve, got %q", names[disabledID])
 	}
 }
