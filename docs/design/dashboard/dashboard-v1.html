@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DailyNiche - Dashboard (dummy) v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --paper: #faf7f2;
+    --ink: #18140f;
+    --ink-soft: #6b6259;
+    --accent: #c1440e;
+    --accent-soft: #f3e2d8;
+    --card: #ffffff;
+    --line: #e8e0d5;
+  }
+  body {
+    font-family: 'Inter', Arial, sans-serif;
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  h1, h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  /* ---- Masthead (same as issue page) ---- */
+  header.site {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 2rem;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+  }
+  header.site .logo {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.7rem;
+    font-weight: 700;
+    font-style: italic;
+  }
+  header.site .logo span {
+    color: var(--accent);
+  }
+  header.site nav a {
+    color: var(--ink);
+    text-decoration: none;
+    margin-left: 1.75rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding-bottom: 0.2rem;
+    border-bottom: 2px solid transparent;
+  }
+  header.site nav a.active {
+    border-bottom-color: var(--accent);
+  }
+  header.site nav a:hover {
+    border-bottom-color: var(--accent);
+  }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 4rem;
+  }
+
+  main > h1 {
+    font-size: 1.9rem;
+    margin: 0 0 1.75rem;
+  }
+
+  section {
+    margin-bottom: 2.5rem;
+  }
+  section > h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: 'Inter', Arial, sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+    margin: 0 0 0.9rem;
+  }
+
+  /* ---- Add feed form: plain, functional, bordered box ---- */
+  .add-feed-form {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    background: var(--card);
+  }
+  .field {
+    margin-bottom: 1rem;
+  }
+  .field label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+  }
+  .field input {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 0.95rem;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.6rem 1.4rem;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.primary:hover {
+    opacity: 0.92;
+  }
+
+  /* ---- Feed list rows: plain dividers, no cards/shadows ---- */
+  .feed-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .feed-row:last-child {
+    border-bottom: none;
+  }
+  .feed-row .feed-info {
+    min-width: 0;
+  }
+  .feed-row .feed-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .feed-row .feed-url {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+  .feed-row button {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--ink);
+  }
+  .feed-row button.delete {
+    color: var(--accent);
+    border-color: var(--accent-soft);
+  }
+  .feed-row button.delete:hover {
+    background: var(--accent-soft);
+  }
+  /* Enable button: a normal secondary action, visually distinct from
+     Delete (not accent-colored, since it isn't destructive). Not wired to
+     anything yet - repos.EnableFeed doesn't exist, see TODO under Task
+     7.4 in CLAUDE.md - but looks and behaves like a real button here. */
+  .feed-row button.enable:hover {
+    background: var(--paper);
+  }
+
+  @media (max-width: 640px) {
+    header.site { padding: 1rem 1.25rem; }
+    header.site .logo { font-size: 1.35rem; }
+    header.site nav a { margin-left: 1rem; font-size: 0.8rem; }
+
+    main { padding: 1.5rem 1.25rem 3rem; }
+    main > h1 { font-size: 1.5rem; }
+
+    .feed-row {
+      flex-wrap: wrap;
+    }
+    .feed-row .feed-info {
+      flex: 1 1 100%;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="logo">Daily<span>Niche</span></div>
+  <nav>
+    <a href="../issue/issue-v6.html">Home</a>
+    <a href="#" class="active">Dashboard</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Dashboard</h1>
+
+  <section>
+    <h2>Add a new feed</h2>
+    <div class="add-feed-form">
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" placeholder="e.g. Tech Blog" />
+      </div>
+      <div class="field">
+        <label for="url">URL</label>
+        <input type="text" id="url" placeholder="https://example.com/feed.xml" />
+      </div>
+      <div class="form-actions">
+        <button class="primary">Add Feed</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Active Feeds (3)</h2>
+    <div class="feed-row">
+      <div class="feed-info">
+        <span class="feed-name">Tech Blog</span>
+        <span class="feed-url">https://example.com/tech/feed.xml</span>
+      </div>
+      <button class="delete">Delete</button>
+    </div>
+    <div class="feed-row">
+      <div class="feed-info">
+        <span class="feed-name">Cooking Blog</span>
+        <span class="feed-url">https://example.com/cooking/feed.xml</span>
+      </div>
+      <button class="delete">Delete</button>
+    </div>
+    <div class="feed-row">
+      <div class="feed-info">
+        <span class="feed-name">Travel Blog</span>
+        <span class="feed-url">https://example.com/travel/feed.xml</span>
+      </div>
+      <button class="delete">Delete</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Disabled Feeds (1)</h2>
+    <div class="feed-row">
+      <div class="feed-info">
+        <span class="feed-name">Old Blog</span>
+        <span class="feed-url">https://example.com/old/feed.xml</span>
+      </div>
+      <button class="enable">Enable</button>
+    </div>
+  </section>
+</main>
+
+</body>
+</html>

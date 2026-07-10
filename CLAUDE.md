@@ -420,6 +420,7 @@ Once the commit is made, I start the next step with its context.
   - [ ] Test: add, delete, immediate UI update
   - PR: "feat: implement feed management UI"
   - TODO (not urgent): add a "Preview" button alongside "Add Feed", backed by a new `GET /api/feeds/preview?url=...` endpoint - reuses `feeds.ParseFeed`/`feeds.ExtractItems` directly, writes nothing to the DB, just shows the feed's title + a few current posts before the user commits to adding it. Motivated by discovering some feeds can silently fail (e.g. a site blocking `gofeed`'s default User-Agent with a 403) - preview surfaces that immediately instead of the user only finding out after adding a dead feed and waiting for the next fetch.
+  - TODO (not urgent): the dashboard design (Task 6.0, `docs/design/dashboard/`) shows disabled feeds in their own section with an "Enable" button - this feature doesn't exist yet. Needs a `repos.EnableFeed` (clears `disabled_at`) and a corresponding API route (e.g. `POST /api/feeds/{id}/enable`), plus wiring the button in `FeedManager.svelte`. The dashboard mockup shows the button visually muted/non-functional until this is built.
 
 ---
 
