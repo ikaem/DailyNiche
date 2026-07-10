@@ -217,6 +217,7 @@ Once the commit is made, I start the next step with its context.
   - [x] Write unit tests with sample feeds
   - PR: "feat: implement feed parser with gofeed"
   - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
+  - TODO: `gofeed`'s default `User-Agent` is the literal string `"Gofeed/1.0"` - some sites (confirmed live: a WordPress site running a security plugin) return `403 Forbidden` specifically for this signature, while a browser/curl/even bare Go UA all pass. Fix: set `parser.UserAgent` to something more neutral or honestly self-identifying (e.g. `"DailyNiche/1.0 (personal RSS reader)"`) before calling `ParseURL` - `gofeed.Parser` already exposes this field, no new dependency needed. Combine with the `Parser`-reuse TODO above when addressed, since both need the same "build one configured `Parser` instead of a fresh default one" change.
 
 - [x] **2.2: Create CLI fetcher scaffold** (1 hour)
   - [x] Create cmd/fetcher/main.go with:
@@ -398,6 +399,7 @@ Once the commit is made, I start the next step with its context.
   - [ ] Connect to API
   - [ ] Test: add, delete, immediate UI update
   - PR: "feat: implement feed management UI"
+  - TODO (not urgent): add a "Preview" button alongside "Add Feed", backed by a new `GET /api/feeds/preview?url=...` endpoint - reuses `feeds.ParseFeed`/`feeds.ExtractItems` directly, writes nothing to the DB, just shows the feed's title + a few current posts before the user commits to adding it. Motivated by discovering some feeds can silently fail (e.g. a site blocking `gofeed`'s default User-Agent with a 403) - preview surfaces that immediately instead of the user only finding out after adding a dead feed and waiting for the next fetch.
 
 ---
 
