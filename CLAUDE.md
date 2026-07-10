@@ -142,18 +142,28 @@ Once the commit is made, I start the next step with its context.
   - PR: "chore: initialize Go project structure"
   - Note: directory renamed from `go/` to `api/` for clarity (purpose-based, not language-based naming)
 
-- [ ] **0.3: Initialize SvelteKit project** (30 min) - SKIPPED FOR NOW, revisit once backend has a working end-to-end slice
-  - [ ] Create web/ with SvelteKit scaffolding
-  - [ ] `npm install` and `npm run dev` works
-  - [ ] Configure API_URL env var
-  - [ ] Basic landing page with "Coming soon"
+- [x] **0.3: Initialize SvelteKit project** (30 min)
+  - [x] Create web/ with SvelteKit scaffolding
+  - [x] `npm install` and `npm run dev` works
+  - [x] Configure API_URL env var
+  - [x] Basic landing page with "Coming soon"
   - PR: "chore: initialize SvelteKit project"
+  - Note: scaffolded via `sv create` (Svelte 5 + runes mode forced on, TypeScript, Prettier, ESLint, Vitest + vitest-browser-svelte + Playwright for component tests). No Tailwind, default `adapter-auto` - both deliberately deferred. `svelte.config.js` doesn't exist separately in this SvelteKit version - adapter/compilerOptions live directly in the `sveltekit()` plugin call inside `vite.config.ts`.
+  - Note: `PUBLIC_API_URL` set via `.env` (gitignored) + `.env.example` (committed) - SvelteKit requires the `PUBLIC_` prefix for any env var exposed to client-side code.
 
 - [x] **0.4: Create Makefile for development commands** (15 min)
   - [x] Create Makefile in project root
   - [x] Add targets: `make api`, `make fetcher`, `make fetcher-dry`, `make test_api`, `make build`, `make web-dev`
   - [x] Document common development tasks
   - PR: "chore: add Makefile for development workflow"
+
+- [ ] **0.5: Split Makefile into included per-area files** (DEFERRED - do later, not urgent)
+  - **Do NOT build this yet.** The Makefile is still small enough to read in one screen. This is queued for whenever it grows further (e.g. once the `web-*` targets from Task 0.3's follow-up land, plus anything Phase 9 deployment adds).
+  - [ ] Create `make/api.mk` - move `api`, `fetcher`, `fetcher-dry`, `seed`, `db-reset`, `test_api`, `build`, `build-api`, `build-fetcher` here
+  - [ ] Create `make/web.mk` - move `web-dev` and any new `web-*` targets (`web-lint`, `web-test`, `web-build`, `web-check`, `web-format`) here
+  - [ ] Root `Makefile` keeps `help` (manually-curated documentation, not derived - splitting it across files makes the full command list harder to find in one place) and `include make/api.mk` / `include make/web.mk`
+  - [ ] Decide where `clean` lives: stays root-level if it should clean both api and web build artifacts, moves into `make/api.mk` if it stays api-only
+  - PR: "chore: split Makefile into per-area included files"
 
 ---
 
