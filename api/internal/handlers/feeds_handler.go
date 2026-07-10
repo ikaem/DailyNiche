@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -109,5 +110,33 @@ func CreateFeed(conn *sql.DB) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(toFeedResponse(feed))
+	}
+}
+
+// DeleteFeed returns an http.HandlerFunc for DELETE /api/feeds/{id}, backed
+// by conn. Soft-deletes via repos.DeleteFeed - see CLAUDE.md: "Feed
+// Deletion is a Soft Delete".
+func DeleteFeed(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			http.Error(w, "invalid feed id", http.StatusBadRequest)
+			return
+		}
+
+		// repos.DeleteFeed itself can't report whether id actually existed
+		// (an UPDATE matching zero rows isn't an error) - check existence
+		// via GetFeed first, so a nonexistent id correctly returns 404.
+		if _, err := repos.GetFeed(conn, id); err != nil {
+			http.Error(w, "feed not found", http.StatusNotFound)
+			return
+		}
+
+		if err := repos.DeleteFeed(conn, id); err != nil {
+			http.Error(w, "failed to delete feed", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

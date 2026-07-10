@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -195,5 +196,66 @@ func TestCreateFeed_ReturnsConflictForDuplicateURL(t *testing.T) {
 	// then: it responds 409
 	if rec.Code != http.StatusConflict {
 		t.Errorf("expected status 409, got %d", rec.Code)
+	}
+}
+
+func TestDeleteFeed_SoftDeletesAndReturns204(t *testing.T) {
+	// given: an existing feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we DELETE it
+	req := httptest.NewRequest(http.MethodDelete, "/api/feeds/"+strconv.FormatInt(id, 10), nil)
+	req.SetPathValue("id", strconv.FormatInt(id, 10))
+	rec := httptest.NewRecorder()
+	DeleteFeed(conn)(rec, req)
+
+	// then: it responds 204
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", rec.Code)
+	}
+
+	// and: the feed row still exists, soft-deleted rather than removed
+	feed, err := repos.GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("expected feed to still exist after delete: %v", err)
+	}
+	if feed.DisabledAt == nil {
+		t.Error("expected DisabledAt to be set after delete")
+	}
+}
+
+func TestDeleteFeed_ReturnsNotFoundForNonexistentID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we DELETE an ID that doesn't exist
+	req := httptest.NewRequest(http.MethodDelete, "/api/feeds/999", nil)
+	req.SetPathValue("id", "999")
+	rec := httptest.NewRecorder()
+	DeleteFeed(conn)(rec, req)
+
+	// then: it responds 404
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestDeleteFeed_ReturnsBadRequestForInvalidID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we DELETE with a non-numeric id
+	req := httptest.NewRequest(http.MethodDelete, "/api/feeds/abc", nil)
+	req.SetPathValue("id", "abc")
+	rec := httptest.NewRecorder()
+	DeleteFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
 	}
 }
