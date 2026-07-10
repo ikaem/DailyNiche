@@ -34,6 +34,12 @@ func main() {
 	// are added, to avoid relying on shared global state.
 	http.HandleFunc("/health", handlers.Health)
 	http.HandleFunc("/api/posts", handlers.Posts(conn))
+	// GET and POST share the same literal path, so both need an explicit
+	// method prefix - registering the same bare "/api/feeds" pattern twice
+	// would panic at startup.
+	http.HandleFunc("GET /api/feeds", handlers.Feeds(conn))
+	http.HandleFunc("POST /api/feeds", handlers.CreateFeed(conn))
+	http.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {

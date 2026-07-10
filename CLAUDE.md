@@ -278,15 +278,18 @@ Once the commit is made, I start the next step with its context.
   - [ ] Test: `/health` returns 200 with `{"status":"ok"}`
   - PR: "feat: initialize HTTP API server"
 
-- [ ] **4.2: Implement feed management API endpoints** (1.5 hours)
-  - [ ] Create internal/handlers/feeds_handler.go:
+- [x] **4.2: Implement feed management API endpoints** (1.5 hours)
+  - [x] Create internal/handlers/feeds_handler.go:
     - GET /api/feeds - list all
     - POST /api/feeds - create (validate URL, name)
     - DELETE /api/feeds/:id - delete
-  - [ ] Proper status codes (201, 204, 400, 404)
-  - [ ] Write httptest tests
-  - [ ] Wire routes in cmd/api/main.go
+  - [x] Proper status codes (201, 204, 400, 404, plus 409 for duplicate URL)
+  - [x] Write httptest tests
+  - [x] Wire routes in cmd/api/main.go
   - PR: "feat: implement feed management API endpoints"
+  - Note: added `repos.ErrDuplicateURL` sentinel error (CreateFeed translates SQLite's SQLITE_CONSTRAINT_UNIQUE into it) so POST /api/feeds can return 409 for a duplicate URL instead of a generic 500.
+  - Note: DELETE /api/feeds/{id} uses Go 1.22's method+path-pattern ServeMux (`r.PathValue`) - no router library needed. GET/POST /api/feeds share a literal path, so both required explicit method prefixes to avoid a duplicate-pattern panic at startup.
+  - Note: verified live end-to-end with curl (create, duplicate 409, list, soft-delete 204, delete-nonexistent 404, invalid id 400).
 
 - [x] **4.3: Implement posts API endpoint** (1.5 hours)
   - [x] Create internal/handlers/posts_handler.go:
@@ -439,7 +442,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 4.1 (CORS/logging middleware, extending the minimal server from 1.5) or 4.2 (feed management endpoints). Phases 0-3 and Task 4.3 are done - the original "ping it, get today's news" vertical slice now works end-to-end, verified live with the `cmd/seed` dev tool. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit whenever ready to build the UI.
+**Next task:** 4.1 (CORS/logging middleware, extending the minimal server from 1.5) or Phase 5 (cron/observability polish for the fetcher). Phases 0-4 are all done - full feed CRUD plus the daily posts feed all work end-to-end over HTTP, verified live with curl. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit whenever ready to build the UI.
 
 ---
 
@@ -601,3 +604,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 3.2: Implement post repository - CreatePost (GUID dedup), ListPostsByDate, ListPostsByFeed, DeletePostsByDate
 - [x] 3.3: Integrate fetcher with repositories - real fetch loop, dry-run, per-feed error isolation, disabled-feed skipping, run() extracted for testability
 - [x] 4.3: Implement posts API endpoint - GET /api/posts (date + feed_id filters), feed name enrichment, cmd/seed dev tool for manual verification
+- [x] 4.2: Implement feed management API endpoints - GET/POST/DELETE /api/feeds, ErrDuplicateURL sentinel (409), Go 1.22 method+path routing, soft delete
