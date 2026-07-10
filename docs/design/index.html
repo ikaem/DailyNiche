@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DailyNiche - Design Showcase</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f0efec;
+    color: #1a1a1a;
+  }
+  header {
+    padding: 1rem 2rem;
+    background: #1a1a1a;
+    color: #fff;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem 2rem 0;
+    background: #fff;
+    border-bottom: 2px solid #ddd;
+  }
+  .tab {
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: #eee;
+    font-size: 0.95rem;
+  }
+  .tab.active {
+    background: #fff;
+    border-color: #1a1a1a;
+    border-bottom: 2px solid #fff;
+    margin-bottom: -2px;
+    font-weight: bold;
+  }
+  .layout {
+    display: flex;
+    height: calc(100vh - 110px);
+  }
+  .version-list {
+    width: 220px;
+    background: #fff;
+    border-right: 1px solid #ddd;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+  .version-list h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin: 0 0 0.75rem;
+  }
+  .version-list a {
+    display: block;
+    padding: 0.5rem 0.6rem;
+    margin-bottom: 0.3rem;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #1a1a1a;
+    font-size: 0.9rem;
+  }
+  .version-list a:hover {
+    background: #f0efec;
+  }
+  .version-list a.selected {
+    background: #1a1a1a;
+    color: #fff;
+  }
+  .version-list .empty {
+    color: #999;
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+  .preview {
+    flex: 1;
+  }
+  .preview iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DailyNiche - Design Showcase</h1>
+</header>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="layout">
+  <div class="version-list" id="version-list"></div>
+  <div class="preview">
+    <iframe id="preview-frame"></iframe>
+  </div>
+</div>
+
+<script>
+  // Add a new tab here whenever a new page type gets designed.
+  // Add a new entry to a page's `versions` array each time a new
+  // <page>-v<N>.html iteration is created in its folder.
+  const pages = {
+    issue: {
+      label: "Issue",
+      versions: ["issue-v1.html", "issue-v2.html", "issue-v3.html", "issue-v4.html", "issue-v5.html", "issue-v6.html"]
+    },
+    dashboard: {
+      label: "Dashboard",
+      versions: []
+    }
+  };
+
+  const tabsEl = document.getElementById("tabs");
+  const versionListEl = document.getElementById("version-list");
+  const previewEl = document.getElementById("preview-frame");
+
+  let activePage = Object.keys(pages)[0];
+
+  function render() {
+    // Tabs
+    tabsEl.innerHTML = "";
+    for (const key of Object.keys(pages)) {
+      const tab = document.createElement("div");
+      tab.className = "tab" + (key === activePage ? " active" : "");
+      tab.textContent = pages[key].label;
+      tab.onclick = () => {
+        activePage = key;
+        render();
+      };
+      tabsEl.appendChild(tab);
+    }
+
+    // Version list
+    versionListEl.innerHTML = "<h2>Iterations</h2>";
+    const versions = pages[activePage].versions;
+    if (versions.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "No designs yet.";
+      versionListEl.appendChild(empty);
+      previewEl.src = "";
+      return;
+    }
+
+    let selected = versions[versions.length - 1];
+    versions.forEach((file) => {
+      const link = document.createElement("a");
+      link.href = "#";
+      link.textContent = file.replace(".html", "");
+      link.className = file === selected ? "selected" : "";
+      link.onclick = (e) => {
+        e.preventDefault();
+        selected = file;
+        previewEl.src = `${activePage}/${file}`;
+        [...versionListEl.querySelectorAll("a")].forEach((a) => a.classList.remove("selected"));
+        link.classList.add("selected");
+      };
+      versionListEl.appendChild(link);
+    });
+
+    previewEl.src = `${activePage}/${selected}`;
+  }
+
+  render();
+</script>
+
+</body>
+</html>

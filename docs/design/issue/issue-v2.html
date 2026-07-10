@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>DailyNiche - Issue View (dummy) v2</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Georgia, 'Times New Roman', serif;
+    margin: 0;
+    background: #f7f5f0;
+    color: #1a1a1a;
+  }
+
+  header.site {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: #1a1a1a;
+    color: #fff;
+  }
+  header.site .logo {
+    font-size: 1.4rem;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+  }
+  header.site nav a {
+    color: #fff;
+    text-decoration: none;
+    margin-left: 1.5rem;
+    font-family: Arial, sans-serif;
+    font-size: 0.95rem;
+  }
+
+  .date-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 2rem;
+    background: #ece7dc;
+    font-family: Arial, sans-serif;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #d8d2c2;
+  }
+  .date-nav .current-date {
+    font-weight: bold;
+    font-size: 1rem;
+  }
+  .date-nav a, .date-nav input {
+    color: #1a1a1a;
+    text-decoration: none;
+  }
+
+  main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .grid-12 {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.5rem;
+  }
+
+  /* shared meta line: feed name + publish date */
+  p.meta {
+    font-family: Arial, sans-serif;
+    font-size: 0.8rem;
+    color: #888;
+    margin: 0.3rem 0 0;
+  }
+  p.meta .feed-name {
+    font-weight: bold;
+    color: #666;
+  }
+
+  /* Above the fold: row 1 - 2 posts, 6 cols each */
+  .hero-post {
+    grid-column: span 6;
+  }
+  .hero-post img {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    display: block;
+  }
+  .hero-post h2 {
+    font-size: 1.6rem;
+    margin: 0.6rem 0 0.3rem;
+  }
+  .hero-post p.desc {
+    font-family: Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #444;
+    margin: 0;
+  }
+
+  /* Above the fold: row 2 - 4 posts, 3 cols each */
+  .medium-post {
+    grid-column: span 3;
+  }
+  .medium-post img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+  }
+  .medium-post h3 {
+    font-size: 1.1rem;
+    margin: 0.5rem 0 0.25rem;
+  }
+  .medium-post p.desc {
+    font-family: Arial, sans-serif;
+    font-size: 0.85rem;
+    color: #444;
+    margin: 0;
+  }
+
+  /* Below the fold: full-width list rows */
+  .list-post {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #ddd;
+  }
+  .list-post img {
+    width: 90px;
+    height: 60px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .list-post .list-post-text h4 {
+    font-size: 1.05rem;
+    margin: 0;
+    font-weight: normal;
+  }
+  .list-post .list-post-text p.meta {
+    margin-top: 0.15rem;
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="logo">DailyNiche</div>
+  <nav>
+    <a href="#">Home</a>
+    <a href="#">Dashboard</a>
+  </nav>
+</header>
+
+<div class="date-nav">
+  <a href="#">&larr; Previous Day</a>
+  <span class="current-date">Friday, July 10, 2026</span>
+  <input type="date" value="2026-07-10" />
+  <a href="#">Next Day &rarr;</a>
+</div>
+
+<main>
+  <div class="grid-12">
+
+    <!-- Above the fold: row 1, 2 hero posts, 6 cols each -->
+    <article class="hero-post">
+      <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&h=600&fit=crop" alt="" />
+      <h2>Go 2.0 Announced</h2>
+      <p class="desc">The Go team announces the next major version, with a focus on generics and tooling improvements.</p>
+      <p class="meta"><span class="feed-name">Tech Blog</span> &middot; Jul 10, 2026</p>
+    </article>
+    <article class="hero-post">
+      <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&h=600&fit=crop" alt="" />
+      <h2>Why SQLite Is Enough</h2>
+      <p class="desc">A case for boring, reliable databases - and why most side projects don't need more.</p>
+      <p class="meta"><span class="feed-name">Tech Blog</span> &middot; Jul 10, 2026</p>
+    </article>
+
+    <!-- Above the fold: row 2, 4 medium posts, 3 cols each -->
+    <article class="medium-post">
+      <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=400&h=300&fit=crop" alt="" />
+      <h3>Perfect Sourdough Starter</h3>
+      <p class="desc">A no-fuss guide to your first starter.</p>
+      <p class="meta"><span class="feed-name">Cooking Blog</span> &middot; Jul 10, 2026</p>
+    </article>
+    <article class="medium-post">
+      <img src="https://images.unsplash.com/photo-1495020689067-958852a7765e?w=400&h=300&fit=crop" alt="" />
+      <h3>A Weekend in Ljubljana</h3>
+      <p class="desc">Small city, big charm.</p>
+      <p class="meta"><span class="feed-name">Travel Blog</span> &middot; Jul 10, 2026</p>
+    </article>
+    <article class="medium-post">
+      <img src="https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=400&h=300&fit=crop" alt="" />
+      <h3>Static Sites Are Back</h3>
+      <p class="desc">The pendulum swings again.</p>
+      <p class="meta"><span class="feed-name">Tech Blog</span> &middot; Jul 9, 2026</p>
+    </article>
+    <article class="medium-post">
+      <img src="https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=300&fit=crop" alt="" />
+      <h3>Weeknight Pasta Ideas</h3>
+      <p class="desc">Five pastas in under 20 minutes.</p>
+      <p class="meta"><span class="feed-name">Cooking Blog</span> &middot; Jul 9, 2026</p>
+    </article>
+
+    <!-- Below the fold: full-width list rows -->
+    <article class="list-post">
+      <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=200&h=150&fit=crop" alt="" />
+      <div class="list-post-text">
+        <h4>Packing Light for Winter</h4>
+        <p class="meta"><span class="feed-name">Travel Blog</span> &middot; Jul 9, 2026</p>
+      </div>
+    </article>
+    <article class="list-post">
+      <img src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=200&h=150&fit=crop" alt="" />
+      <div class="list-post-text">
+        <h4>Another Tech Blog Post Title Goes Here</h4>
+        <p class="meta"><span class="feed-name">Tech Blog</span> &middot; Jul 9, 2026</p>
+      </div>
+    </article>
+    <article class="list-post">
+      <img src="https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=200&h=150&fit=crop" alt="" />
+      <div class="list-post-text">
+        <h4>Yet Another Post From The Cooking Blog</h4>
+        <p class="meta"><span class="feed-name">Cooking Blog</span> &middot; Jul 8, 2026</p>
+      </div>
+    </article>
+    <article class="list-post">
+      <img src="https://images.unsplash.com/photo-1495020689067-958852a7765e?w=200&h=150&fit=crop" alt="" />
+      <div class="list-post-text">
+        <h4>A Fourth Post To Show The List Continues</h4>
+        <p class="meta"><span class="feed-name">Travel Blog</span> &middot; Jul 8, 2026</p>
+      </div>
+    </article>
+
+  </div>
+</main>
+
+</body>
+</html>
