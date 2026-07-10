@@ -274,6 +274,7 @@ Once the commit is made, I start the next step with its context.
     - Logging middleware
     - Error response formatting
     - Health check: GET /health
+  - [ ] Switch from the global `http.HandleFunc`/`DefaultServeMux` (used since Task 1.5) to an explicit `mux := http.NewServeMux()` - needed to cleanly wrap routes with CORS/logging middleware, and to stop relying on shared global state now that there are 5 routes registered (`/health`, `/api/posts`, `GET/POST /api/feeds`, `DELETE /api/feeds/{id}`)
   - [ ] Use standard library net/http
   - [ ] Test: `/health` returns 200 with `{"status":"ok"}`
   - PR: "feat: initialize HTTP API server"
@@ -322,6 +323,21 @@ Once the commit is made, I start the next step with its context.
 ---
 
 ### PHASE 6: Frontend - Basic Setup (~2 hours)
+
+- [ ] **6.0: Define frontend pages and full design (ASCII wireframe -> dummy HTML)** (1-2 hours)
+  - **Goal:** decide what pages the app has and design each one *fully*, before writing any Svelte code - not just a paragraph description, an actual concrete HTML artifact to build components from.
+  - **Trigger for this task existing:** the original plan jumped straight into building specific pages/components (6.2, 7.1-7.4) without ever explicitly listing the full page inventory - and doing so surfaced a real gap: "Archive of previous issues" is a stated MVP feature (see top of this file) with no corresponding implementation task anywhere in Phase 6/7. This task's job is to close that gap deliberately, not rediscover it mid-build.
+  - [ ] List every page/route the app needs, e.g.:
+    - Today's issue (home, `/`) - the magazine view for today's posts
+    - Archive/previous issue view - **currently missing from the plan entirely**; decide the navigation mechanism (date picker? prev/next day arrows? a list of past dates?) - the backend already supports this fully via `GET /api/posts?date=YYYY-MM-DD`, so this is purely a frontend decision
+    - Feed management (`/feeds`) - add/list/remove feeds
+  - For each page, design in two passes:
+    - [ ] **Pass 1 - ASCII wireframe in chat:** a rough text/box sketch of the layout, discussed and agreed on before any code, to align quickly without investing in markup yet
+    - [ ] **Pass 2 - dummy static HTML:** once the wireframe is agreed, build a real plain HTML file (plus simple CSS) implementing that design - no Svelte, no framework, just markup/styling standing in for the real page
+  - [ ] These dummy HTML files become the concrete base that Phase 6.2/7.x tasks translate into real Svelte components wired to live data - not thrown away once Svelte work starts
+  - [ ] Store the dummy HTML files in `docs/design/` (reference artifacts, kept alongside other docs - not part of the runtime `web/` app)
+  - [ ] Update this checklist (Phase 6/7) to add any missing tasks the above surfaces - e.g. an explicit "Archive page" task in Phase 7
+  - PR: "docs: add frontend page designs (ASCII wireframes + dummy HTML)"
 
 - [ ] **6.1: Create API client library** (1 hour)
   - [ ] Create web/src/lib/api.js:
