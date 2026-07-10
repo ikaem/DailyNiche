@@ -116,10 +116,10 @@ Once the commit is made, I start the next step with its context.
 - **Context matters** - always explain how it fits into the bigger picture
 
 ### Testing (TDD is mandatory)
-- **TDD is required** - tests are not optional polish tacked on in Phase 8, they're written as each piece of logic is built.
+- **TDD is required** - tests are not optional polish tacked on in Phase 8, they're written as each piece of logic is built. Applies to the frontend too (via Vitest), not just the Go backend - confirmed as a standing policy once the frontend's first real logic (`toPostModel`/`formatDate`) was built.
 - **Tests + the code they cover can live in the same commit** - unlike other changes, you don't need to split "write test" and "write implementation" into two atomic commits. One commit covering both is fine, since they're really one logical unit of work.
-- Applies to repos, parsers, handlers - anything with real logic. Skeleton/wiring code (e.g. an empty `main()`) doesn't need tests.
-- **Structure every test body with given/when/then comments** marking the setup, the action under test, and the assertion. Go has no built-in BDD syntax, so these comments are how test intent stays readable at a glance.
+- Applies to repos, parsers, handlers, frontend mapping/formatting functions - anything with real logic. Skeleton/wiring code (e.g. an empty `main()`, a purely static Svelte component with no logic) doesn't need tests.
+- **Structure every test body with given/when/then comments** marking the setup, the action under test, and the assertion. Neither Go nor Vitest have a built-in BDD syntax that replaces this, so these comments are how test intent stays readable at a glance regardless of language.
 
 ---
 
@@ -379,6 +379,7 @@ Once the commit is made, I start the next step with its context.
     - Display loading/error states
     - Render posts as simple list for now
   - PR: "feat: create main page layout and navigation"
+  - TODO (not urgent): `src/lib/postModel.ts`'s `formatDate` hardcodes the `hr-HR` locale. Should eventually be derived from the user's actual browser/location settings (e.g. `navigator.language`) rather than a fixed value - fine for a single-user personal project for now.
 
 ---
 
