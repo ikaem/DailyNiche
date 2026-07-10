@@ -229,6 +229,16 @@ Once the commit is made, I start the next step with its context.
   - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
   - TODO: `gofeed`'s default `User-Agent` is the literal string `"Gofeed/1.0"` - some sites (confirmed live: a WordPress site running a security plugin) return `403 Forbidden` specifically for this signature, while a browser/curl/even bare Go UA all pass. Fix: set `parser.UserAgent` to something more neutral or honestly self-identifying (e.g. `"DailyNiche/1.0 (personal RSS reader)"`) before calling `ParseURL` - `gofeed.Parser` already exposes this field, no new dependency needed. Combine with the `Parser`-reuse TODO above when addressed, since both need the same "build one configured `Parser` instead of a fresh default one" change.
 
+- [ ] **2.3: Add post images to the pipeline** (DEFERRED - not urgent)
+  - **Do NOT build this yet.** The frontend design mockups (Task 6.0, `docs/design/issue/`) use dummy Unsplash placeholder images for every post. Real images aren't needed until those mockups get wired up to real Svelte components with live data (Phase 7) - until then, dummy images are fine.
+  - **Context:** verified live that `gofeed` already parses an image URL into `item.Image.URL` when a feed provides one (confirmed working against a real WordPress feed) - but our code currently discards it entirely. `models.Post` has no image field, `ExtractItems` never reads `item.Image`, and the `posts` table has no `image_url` column. Not every feed has an image though (confirmed varies by feed/platform) - the model must tolerate an empty/missing image gracefully, no fallback HTML-scraping needed for MVP.
+  - [ ] Add `image_url TEXT` column to `posts` in `schema.sql` (safe to edit directly still - no real archived data exists yet, per Task 1.3's migration-system trigger note)
+  - [ ] Add `ImageURL string` field to `models.Post`
+  - [ ] Update `ExtractItems` to populate it from `item.Image.URL` (empty string if the feed doesn't provide one)
+  - [ ] Update `post_repo.go`'s `CreatePost`/`scanPosts` SQL to include the new column
+  - [ ] Add `image_url` to `PostResponse` in `posts_handler.go`
+  - PR: "feat: capture and serve post images"
+
 - [x] **2.2: Create CLI fetcher scaffold** (1 hour)
   - [x] Create cmd/fetcher/main.go with:
     - `-once` flag (run and exit)
