@@ -201,6 +201,7 @@ Once the commit is made, I start the next step with its context.
 - [ ] **1.3: Add lightweight DB migration system** (DEFERRED - see trigger below)
   - **Do NOT build this yet.** `schema.sql` uses `CREATE TABLE IF NOT EXISTS`, which only works for a brand-new database - it silently does nothing to an existing one when columns are added/changed later (already happened once: adding `disabled_at` to `feeds`). Fine for now since no real database exists yet.
   - **Trigger to actually build this:** once the fetcher (3.3) is running regularly and `dailyniche.db` holds real archived issues you don't want to lose. At that point "just delete the db and restart" stops being an acceptable fix for schema changes.
+  - **Second, independent justification (not a replacement for the trigger above, an additional reason):** building this is worth doing as a deliberate learning/engineering exercise in its own right, regardless of whether real production data exists yet. If we want to use that framing, Task 2.3's `image_url` column addition is a natural first real migration to write it against - decide at that point whether to still "just edit schema.sql directly" (still valid/safe per the trigger above) or use it as the occasion to build the migration system for real.
   - [ ] Numbered migration files (e.g. `0001_init.sql`, `0002_add_disabled_at.sql`) instead of one full `schema.sql`
   - [ ] `schema_migrations` table tracking which migrations have run
   - [ ] On startup, apply any migrations not yet recorded, in order
@@ -244,11 +245,11 @@ Once the commit is made, I start the next step with its context.
 - [ ] **2.3: Add post images to the pipeline** (DEFERRED - not urgent)
   - **Do NOT build this yet.** The frontend design mockups (Task 6.0, `docs/design/issue/`) use dummy Unsplash placeholder images for every post. Real images aren't needed until those mockups get wired up to real Svelte components with live data (Phase 7) - until then, dummy images are fine.
   - **Context:** verified live that `gofeed` already parses an image URL into `item.Image.URL` when a feed provides one (confirmed working against a real WordPress feed) - but our code currently discards it entirely. `models.Post` has no image field, `ExtractItems` never reads `item.Image`, and the `posts` table has no `image_url` column. Not every feed has an image though (confirmed varies by feed/platform) - the model must tolerate an empty/missing image gracefully, no fallback HTML-scraping needed for MVP.
-  - [ ] Add `image_url TEXT` column to `posts` in `schema.sql` (safe to edit directly still - no real archived data exists yet, per Task 1.3's migration-system trigger note)
+  - [ ] Add `image_url TEXT` column to `posts` in `schema.sql` (safe to edit directly still - no real archived data exists yet, per Task 1.3's migration-system trigger note - or see Task 1.3's second justification for using this column as the occasion to build the migration system instead)
   - [ ] Add `ImageURL string` field to `models.Post`
   - [ ] Update `ExtractItems` to populate it from `item.Image.URL` (empty string if the feed doesn't provide one)
   - [ ] Update `post_repo.go`'s `CreatePost`/`scanPosts` SQL to include the new column
-  - [ ] Add `image_url` to `PostResponse` in `posts_handler.go`
+  - [ ] Add `image_url` to `PostResponse` in `posts_handler.go` - **when a post has no image, the API response should carry a real placeholder image URL here, not an empty string.** Decided (2026-07-13) that the fallback belongs in the API layer, not per-client (web/mobile/etc.) - so any future client gets consistent placeholder behavior for free instead of reimplementing the same fallback logic. Still undecided: where the placeholder image comes from (self-hosted asset served by the Go API, vs. pointing to some third-party-hosted default) - decide at implementation time.
   - PR: "feat: capture and serve post images"
 
 - [x] **2.2: Create CLI fetcher scaffold** (1 hour)
