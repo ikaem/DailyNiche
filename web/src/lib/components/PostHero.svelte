@@ -1,3 +1,9 @@
+<!--
+	Above-the-fold hero card: used for the top 2 posts of the day.
+	Image-overlay treatment (title/desc sit on top of the photo) marks
+	these as the most prominent posts. See PostMedium for the next tier
+	down and PostListItem for everything below the fold.
+-->
 <script lang="ts">
 	import type { PostModel } from '$lib/types';
 
