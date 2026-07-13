@@ -22,3 +22,13 @@ export interface PostModel {
 	feedName: string;
 	publishedAtDisplay: string;
 }
+
+// Feed matches exactly what the API client delivers for a feed - raw,
+// unformatted. disabledAt is an ISO string when the feed has been removed
+// (soft delete - see CLAUDE.md), null when active.
+export interface Feed {
+	id: number;
+	name: string;
+	url: string;
+	disabledAt: string | null;
+}
