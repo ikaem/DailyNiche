@@ -1,5 +1,5 @@
-import { PUBLIC_API_URL } from '$env/static/public';
-import type { Feed, Post } from './types';
+import { API_URL } from '$env/static/private';
+import type { Feed, Post } from '../types';
 
 // ApiError carries the HTTP status alongside the message, so callers (e.g.
 // FeedManager, Task 7.4) can branch on it - a 409 duplicate-URL response
@@ -61,7 +61,7 @@ function toFeed(wire: FeedWire): Feed {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-	const res = await fetch(`${PUBLIC_API_URL}${path}`, init);
+	const res = await fetch(`${API_URL}${path}`, init);
 	if (!res.ok) {
 		throw new ApiError(`API request to ${path} failed with status ${res.status}`, res.status);
 	}

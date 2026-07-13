@@ -1,4 +1,4 @@
-import { PUBLIC_API_URL } from '$env/static/public';
+import { API_URL } from '$env/static/private';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addFeed, deleteFeed, getFeeds, getPostsByDate, getPostsToday } from './api';
 
@@ -38,7 +38,7 @@ describe('api', () => {
 			const posts = await getPostsByDate('2026-07-10');
 
 			// then: fetch is called with the date query param, and the post is mapped
-			expect(fetch).toHaveBeenCalledWith(`${PUBLIC_API_URL}/api/posts?date=2026-07-10`, undefined);
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts?date=2026-07-10`, undefined);
 			expect(posts).toEqual([
 				{
 					id: 1,
@@ -72,7 +72,7 @@ describe('api', () => {
 			const posts = await getPostsToday();
 
 			// then: fetch is called against /api/posts with no query string, and the post is mapped
-			expect(fetch).toHaveBeenCalledWith(`${PUBLIC_API_URL}/api/posts`, undefined);
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts`, undefined);
 			expect(posts).toEqual([
 				{
 					id: 4,
@@ -143,7 +143,7 @@ describe('api', () => {
 			const feed = await addFeed('New Blog', 'https://example.com/new-feed');
 
 			// then: fetch is called with the right method, headers, and body
-			expect(fetch).toHaveBeenCalledWith(`${PUBLIC_API_URL}/api/feeds`, {
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/feeds`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ name: 'New Blog', url: 'https://example.com/new-feed' })
@@ -166,7 +166,7 @@ describe('api', () => {
 			await deleteFeed(3);
 
 			// then: fetch is called with DELETE against that feed's id
-			expect(fetch).toHaveBeenCalledWith(`${PUBLIC_API_URL}/api/feeds/3`, { method: 'DELETE' });
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/feeds/3`, { method: 'DELETE' });
 		});
 	});
 
