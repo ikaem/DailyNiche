@@ -1,7 +1,8 @@
-.PHONY: help api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean
+.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean
 
 help:
 	@echo "DailyNiche - available commands:"
+	@echo "  make dev            Run the API server and frontend dev server together"
 	@echo "  make api            Run the API server (go run)"
 	@echo "  make fetcher        Run the feed fetcher once, verbose"
 	@echo "  make fetcher-dry    Run the feed fetcher once, dry-run (no DB writes)"
@@ -11,6 +12,12 @@ help:
 	@echo "  make build          Build both api and fetcher binaries"
 	@echo "  make web-dev        Run the frontend dev server"
 	@echo "  make clean          Remove built binaries"
+
+# -j2 runs both targets concurrently in one make invocation - no extra
+# process-manager dependency (e.g. concurrently/foreman) needed for just two
+# processes. Ctrl+C stops both.
+dev:
+	@$(MAKE) -j2 api web-dev
 
 api:
 	cd api && go run ./cmd/api
