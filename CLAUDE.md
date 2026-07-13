@@ -82,6 +82,17 @@ Example: "Task 1.1 (Database Schema): Creating Feed and Post structs in internal
 - No "everything in one go" - break it into reviewable chunks
 - Each change is small enough that you can understand it quickly
 
+### Atomic Development
+
+This is the concrete practice that makes atomic commits possible - not just a description of the commits after the fact, but a rule for how I write the code in the first place:
+
+- **Write code so that an atomic commit is possible.** Before starting a step, shape the work as one self-contained, reviewable unit - don't build ahead into the next logical change (e.g. don't write `api.ts` before you've reviewed and committed the type it depends on, even if I already know I'll need it next).
+- **Each unit pairs a small, self-contained component with its TDD test, if the code has real logic.** Per the testing rule below, one commit can hold both the implementation and its test - but it should not hold multiple unrelated components, or a component plus the start of the next one.
+- **Then, and only then, hand it off for review.** You review the code (in your IDE or via the diff I show).
+- **You make the actual commit.** I never commit without your explicit approval (see Rules below) - this is what keeps each review small enough to actually review.
+
+If a task naturally decomposes into several small pieces (e.g. a type, then the client that uses it, then the test), each piece gets its own hand-off and its own commit - I don't pre-build the next piece while waiting for review on the current one.
+
 ### After Changes
 I summarize:
 1. **What was done** - brief description of the change
@@ -112,6 +123,7 @@ Once the commit is made, I start the next step with its context.
 ### Rules
 - **No auto-commits** - I never commit without your explicit approval
 - **Atomic changes** - each commit is one logical piece
+- **Atomic Development** - see above: code must be *written* in self-contained units in the first place, not just described that way after the fact
 - **Reviewable** - each step should take <5 min to review
 - **Context matters** - always explain how it fits into the bigger picture
 
