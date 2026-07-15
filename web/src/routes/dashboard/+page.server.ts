@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { addFeed, ApiError, getFeeds } from '$lib/server/api';
+import { addFeed, ApiError, deleteFeed, getFeeds } from '$lib/server/api';
 import type { Actions, PageServerLoad } from './$types';
 
 // Runs only on the server - same reasoning as the home page's load: no
@@ -56,6 +56,24 @@ export const actions: Actions = {
 				return fail(err.status, { message: err.message });
 			}
 			return fail(500, { message: 'Failed to add feed' });
+		}
+	},
+
+	deleteFeed: async ({ request }) => {
+		const rawId = String((await request.formData()).get('id') ?? '');
+		const id = Number(rawId);
+
+		if (!rawId || Number.isNaN(id)) {
+			return fail(400, { message: 'a valid feed id is required' });
+		}
+
+		try {
+			await deleteFeed(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to delete feed' });
 		}
 	}
 };
