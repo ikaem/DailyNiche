@@ -302,13 +302,14 @@ Once the commit is made, I start the next step with its context.
 ### PHASE 4: REST API (~2-3 hours)
 
 - [ ] **4.1: Set up HTTP server and middleware** (1.5 hours)
+  - **CORS middleware may no longer be needed at all** (re-evaluate before building this item specifically): the frontend's Task 6.1 architecture pivot means the browser never calls the Go API directly - all reads go through SvelteKit `load` functions and all writes through form `actions`, both server-to-server. CORS only matters for browser-originated cross-origin requests, so as long as that BFF pattern holds for every future frontend feature too, this specific bullet can likely be dropped from this task rather than implemented. Logging middleware, error formatting, and the `http.NewServeMux()` switch are unaffected and still worth doing.
   - [ ] Create cmd/api/main.go with:
     - HTTP server on port 8080 (configurable via env)
-    - CORS middleware (allow localhost:5173)
+    - ~~CORS middleware (allow localhost:5173)~~ - see note above, likely unnecessary now
     - Logging middleware
     - Error response formatting
     - Health check: GET /health
-  - [ ] Switch from the global `http.HandleFunc`/`DefaultServeMux` (used since Task 1.5) to an explicit `mux := http.NewServeMux()` - needed to cleanly wrap routes with CORS/logging middleware, and to stop relying on shared global state now that there are 5 routes registered (`/health`, `/api/posts`, `GET/POST /api/feeds`, `DELETE /api/feeds/{id}`)
+  - [ ] Switch from the global `http.HandleFunc`/`DefaultServeMux` (used since Task 1.5) to an explicit `mux := http.NewServeMux()` - needed to cleanly wrap routes with logging middleware, and to stop relying on shared global state now that there are 5 routes registered (`/health`, `/api/posts`, `GET/POST /api/feeds`, `DELETE /api/feeds/{id}`)
   - [ ] Use standard library net/http
   - [ ] Test: `/health` returns 200 with `{"status":"ok"}`
   - PR: "feat: initialize HTTP API server"
@@ -358,83 +359,41 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 6: Frontend - Basic Setup (~2 hours)
 
-- [ ] **6.0: Define frontend pages and full design (ASCII wireframe -> dummy HTML)** (1-2 hours)
-  - **Goal:** decide what pages the app has and design each one *fully*, before writing any Svelte code - not just a paragraph description, an actual concrete HTML artifact to build components from.
-  - **Trigger for this task existing:** the original plan jumped straight into building specific pages/components (6.2, 7.1-7.4) without ever explicitly listing the full page inventory - and doing so surfaced a real gap: "Archive of previous issues" is a stated MVP feature (see top of this file) with no corresponding implementation task anywhere in Phase 6/7. This task's job is to close that gap deliberately, not rediscover it mid-build.
-  - [ ] List every page/route the app needs, e.g.:
-    - Today's issue (home, `/`) - the magazine view for today's posts
-    - Archive/previous issue view - **currently missing from the plan entirely**; decide the navigation mechanism (date picker? prev/next day arrows? a list of past dates?) - the backend already supports this fully via `GET /api/posts?date=YYYY-MM-DD`, so this is purely a frontend decision
-    - Feed management (`/feeds`) - add/list/remove feeds
-  - For each page, design in two passes:
-    - [ ] **Pass 1 - ASCII wireframe in chat:** a rough text/box sketch of the layout, discussed and agreed on before any code, to align quickly without investing in markup yet
-    - [ ] **Pass 2 - dummy static HTML:** once the wireframe is agreed, build a real plain HTML file (plus simple CSS) implementing that design - no Svelte, no framework, just markup/styling standing in for the real page
-  - [ ] These dummy HTML files become the concrete base that Phase 6.2/7.x tasks translate into real Svelte components wired to live data - not thrown away once Svelte work starts
-  - [ ] Store the dummy HTML files in `docs/design/` (reference artifacts, kept alongside other docs - not part of the runtime `web/` app)
-  - [ ] Update this checklist (Phase 6/7) to add any missing tasks the above surfaces - e.g. an explicit "Archive page" task in Phase 7
-  - PR: "docs: add frontend page designs (ASCII wireframes + dummy HTML)"
+- [x] **6.0: Define frontend pages and full design (ASCII wireframe -> dummy HTML)** (1-2 hours)
+  - Dummy static HTML mockups live in `docs/design/issue/` (issue-v1 through v6, v6 chosen) and `docs/design/dashboard/` (dashboard-v1), plus a showcase `docs/design/index.html`. Archive/previous-issue navigation resolved as a date-nav pill bar (prev/next arrows + native date input), not a separate route - same `/` page renders whichever day's issue is loaded.
+  - Note: "Feed management" ended up at `/dashboard` (not `/feeds` as originally sketched) - deliberately generic naming in case it grows beyond just feed CRUD later.
 
-- [ ] **6.1: Create API client library** (1 hour)
-  - [ ] Create web/src/lib/api.js:
-    - Base URL from env
-    - getFeeds(), addFeed(name, url), deleteFeed(id)
-    - getPostsByDate(date), getPostsToday()
-    - Error handling
-  - [ ] Create web/src/lib/stores.js (optional, if using Svelte stores)
-  - PR: "feat: create API client library"
+- [x] **6.1: Create API client library** (1 hour)
+  - Lives at `web/src/lib/server/api.ts`, not `web/src/lib/api.js` - see the architecture note below for why. Implements `getFeeds`, `addFeed`, `deleteFeed`, `getPostsByDate`, `getPostsToday`, plus an `ApiError` class (carries HTTP status) for error handling. Wire-shape (snake_case) to domain-type (camelCase) mapping lives here too (`PostWire`/`FeedWire` + `toPost`/`toFeed`), mirroring the Go API's own `models.Post`/`PostResponse` DTO split.
+  - No `stores.js` - not needed once data loading moved to SvelteKit's own `load`/`data` mechanism (see below).
+  - **Architecture note (decided 2026-07-13):** originally planned as a client-side module called from `onMount`, matching the base SvelteKit env-var setup from Task 0.3 (`PUBLIC_API_URL`). Pivoted mid-build to a BFF (backend-for-frontend) pattern instead: the module moved under `web/src/lib/server/` (SvelteKit enforces this can never be imported into client-run code - a build-time guarantee, not just discipline), and the env var was renamed `PUBLIC_API_URL` -> `API_URL` (now `$env/static/private`). Reasoning: the browser should never talk to the Go API directly - all reads go through `+page.server.ts` `load` functions, all writes through form `actions` - so CORS becomes a non-issue for this app entirely (see Task 4.1's note).
 
-- [ ] **6.2: Create main page layout and navigation** (1 hour)
-  - [ ] Update web/src/routes/+layout.svelte:
-    - Navigation header with logo
-    - Links to /posts and /feeds
-    - Basic styling
-  - [ ] Create web/src/routes/+page.svelte:
-    - Fetch posts for today on mount
-    - Display loading/error states
-    - Render posts as simple list for now
-  - PR: "feat: create main page layout and navigation"
+- [x] **6.2: Create main page layout and navigation** (1 hour)
+  - `+layout.svelte` renders a shared `Header.svelte` (masthead + Home/Dashboard nav with active-link highlighting via `$app/state`'s `page` + `$app/paths`'s `resolve()`).
+  - `+page.svelte` does NOT fetch on mount - per the architecture pivot above, `web/src/routes/+page.server.ts`'s `load` function fetches server-side and returns `{ posts, error }`; the component just consumes `data` via `$props()`. No loading-state UI needed (SSR means data's already there); a `data.error` branch replaces the "render posts as simple list" fallback.
   - TODO (not urgent): `src/lib/postModel.ts`'s `formatDate` hardcodes the `hr-HR` locale. Should eventually be derived from the user's actual browser/location settings (e.g. `navigator.language`) rather than a fixed value - fine for a single-user personal project for now.
 
 ---
 
 ### PHASE 7: Frontend - Magazine Layout (~3 hours)
 
-- [ ] **7.1: Above-the-fold section (top 10, 2 columns)** (1.5 hours)
-  - [ ] Create web/src/components/AboveTheFold.svelte:
-    - Takes top 10 posts
-    - 2-column grid layout
-    - Time-based sizing: newer posts larger, older smaller
-    - Show: headline, feed name, publish time
-    - Click opens article link
-  - [ ] Update +page.svelte to use it
-  - PR: "feat: implement above-the-fold magazine section"
+- [x] **7.1 + 7.2: Above/below-the-fold sections** (merged - the chosen design (issue-v6) uses a 3-tier hierarchy, not the original literal "top 10 in 2 cols, then 4 cols" split)
+  - `PostHero.svelte` - the day's top 2 posts, full-bleed image with title/description overlaid (image-overlay treatment), `grid-column: span 6` (2 per row on desktop)
+  - `PostMedium.svelte` - next 4 posts, plain card (image on top, content below), `grid-column: span 3` (4 per row on desktop)
+  - `PostListItem.svelte` - everything after the top 6, single-column text row with a small thumbnail
+  - `AboveTheFold.svelte` composes the first 2 as `PostHero` + next 4 as `PostMedium`; `BelowTheFold.svelte` composes the rest as `PostListItem` under an "Also today" label (hidden entirely if there are 6 or fewer posts total)
+  - Both render with **no wrapping element** - they're fragments rendered directly into the parent's `.grid-12` container (owned by `+page.svelte`), since `PostHero`/`PostMedium`'s `grid-column: span N` requires them to be direct grid children
+  - `DateNav.svelte` - the prev/next/date-jump pill bar, extracted from `+page.svelte` as its own component
+  - All in `web/src/lib/components/` (not `web/src/components/` as originally sketched, to match SvelteKit's `$lib` convention)
 
-- [ ] **7.2: Below-the-fold section (4 columns)** (1 hour)
-  - [ ] Create web/src/components/BelowTheFold.svelte:
-    - Takes posts 11-N
-    - 4-column grid, smaller cards
-    - Sorted by publish time
-    - Clearly differentiated from above-fold
-  - [ ] Update +page.svelte to use it
-  - PR: "feat: implement below-the-fold section"
+- [x] **7.3: Bottom section** - superseded by `PostListItem.svelte`/`BelowTheFold.svelte` above (no separate `BottomNews.svelte` - one list-item component serves this role)
 
-- [ ] **7.3: Bottom section (1 column, single-line text)** (45 min)
-  - [ ] Create web/src/components/BottomNews.svelte:
-    - Next 4 posts as text list
-    - Format: "[Feed] > Title" or similar
-    - Links work, text truncated if needed
-  - [ ] Update +page.svelte to use it
-  - PR: "feat: implement bottom news section"
-
-- [ ] **7.4: Feed management UI** (1.5 hours)
-  - [ ] Create web/src/components/FeedManager.svelte:
-    - List feeds, add form, delete buttons
-    - Success/error feedback
-  - [ ] Create web/src/routes/feeds/+page.svelte
-  - [ ] Connect to API
-  - [ ] Test: add, delete, immediate UI update
-  - PR: "feat: implement feed management UI"
+- [x] **7.4: Feed management UI** (1.5 hours)
+  - No separate `FeedManager.svelte` - the dashboard's list/add-form/delete-buttons markup lives directly in `web/src/routes/dashboard/+page.svelte` (small enough as a single page; revisit extraction if it grows).
+  - `web/src/routes/dashboard/+page.server.ts`: `load` lists feeds (same error-as-data pattern as the home page); `actions.addFeed`/`actions.deleteFeed` handle mutations - both validate defensively (required fields, well-formed URL, numeric id) before ever calling the Go API, then translate `ApiError` into `fail(status, {message})`. Neither action returns data on success - `use:enhance`'s default behavior (verified against `@sveltejs/kit`'s own source) already resets the form and calls `invalidateAll()` for any successful result.
+  - Verified live end-to-end against the real Go API: add, delete (soft-delete moves a feed into "Disabled Feeds"), and validation-failure (form NOT cleared, per `enhance`'s failure-path behavior) all confirmed via screenshots.
   - TODO (not urgent): add a "Preview" button alongside "Add Feed", backed by a new `GET /api/feeds/preview?url=...` endpoint - reuses `feeds.ParseFeed`/`feeds.ExtractItems` directly, writes nothing to the DB, just shows the feed's title + a few current posts before the user commits to adding it. Motivated by discovering some feeds can silently fail (e.g. a site blocking `gofeed`'s default User-Agent with a 403) - preview surfaces that immediately instead of the user only finding out after adding a dead feed and waiting for the next fetch.
-  - TODO (not urgent): the dashboard design (Task 6.0, `docs/design/dashboard/`) shows disabled feeds in their own section with an "Enable" button - this feature doesn't exist yet. Needs a `repos.EnableFeed` (clears `disabled_at`) and a corresponding API route (e.g. `POST /api/feeds/{id}/enable`), plus wiring the button in `FeedManager.svelte`. The dashboard mockup shows the button visually muted/non-functional until this is built.
+  - TODO (not urgent): the dashboard shows disabled feeds in their own section with an "Enable" button, rendered but inert (`<button type="button">`, no action wired) - this feature doesn't exist on the backend yet. Needs a `repos.EnableFeed` (clears `disabled_at`) and a corresponding form action, plus wiring the button in `dashboard/+page.svelte`.
 
 ---
 
@@ -495,7 +454,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** 4.1 (CORS/logging middleware, extending the minimal server from 1.5) or Phase 5 (cron/observability polish for the fetcher). Phases 0-4 are all done - full feed CRUD plus the daily posts feed all work end-to-end over HTTP, verified live with curl. 0.3 (SvelteKit) was intentionally skipped for now in favor of a backend-first vertical slice; revisit whenever ready to build the UI.
+**Next task:** Phases 0-4 (backend), 6, and 7 (frontend) are all done - the full vertical slice works end-to-end: the SvelteKit frontend (issue page + dashboard) talks to the real Go API via server-side `load`/`actions`, verified live in a browser. Remaining open items, in no particular required order: 4.1's logging middleware/error formatting (CORS itself is likely unnecessary now - see its note), Phase 5 (cron/observability polish for the fetcher), Task 2.3 (post images), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
 
 ---
 
@@ -658,3 +617,10 @@ npm run dev               # Start dev server (port 5173)
 - [x] 3.3: Integrate fetcher with repositories - real fetch loop, dry-run, per-feed error isolation, disabled-feed skipping, run() extracted for testability
 - [x] 4.3: Implement posts API endpoint - GET /api/posts (date + feed_id filters), feed name enrichment, cmd/seed dev tool for manual verification
 - [x] 4.2: Implement feed management API endpoints - GET/POST/DELETE /api/feeds, ErrDuplicateURL sentinel (409), Go 1.22 method+path routing, soft delete
+- [x] 0.3: Initialize SvelteKit project - scaffolded via `sv create`, Svelte 5 runes mode, TypeScript, Vitest
+- [x] 6.0: Define frontend pages and full design - dummy HTML mockups in docs/design/ (issue-v6, dashboard-v1 chosen)
+- [x] 6.1: Create API client library - web/src/lib/server/api.ts, pivoted to server-only (BFF pattern) mid-build - see the architecture note under 6.1 above
+- [x] 6.2: Create main page layout and navigation - Header.svelte, +page.server.ts load (not onMount)
+- [x] 7.1 + 7.2: Above/below-the-fold sections - PostHero, PostMedium, PostListItem, AboveTheFold, BelowTheFold, DateNav
+- [x] 7.3: Bottom section - superseded by PostListItem/BelowTheFold
+- [x] 7.4: Feed management UI - dashboard/+page.svelte + +page.server.ts (load + addFeed/deleteFeed actions), verified live end-to-end
