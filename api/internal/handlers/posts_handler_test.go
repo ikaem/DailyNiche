@@ -150,6 +150,66 @@ func TestPosts_ReturnsPostsForToday(t *testing.T) {
 	}
 }
 
+func TestPosts_SubstitutesPlaceholderWhenPostHasNoImage(t *testing.T) {
+	// given: a post with no image url (newTestPost leaves ImageURL empty)
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:no-image-post", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: the response substitutes the placeholder rather than an empty string
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].ImageURL != placeholderImageURL {
+		t.Errorf("expected placeholder image url, got %q", got[0].ImageURL)
+	}
+}
+
+func TestPosts_PassesThroughRealImageURL(t *testing.T) {
+	// given: a post with a real image url
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	post := newTestPost(feedID, "urn:uuid:has-image-post", time.Now().UTC())
+	post.ImageURL = "https://example.com/real-image.jpg"
+	if _, err := repos.CreatePost(conn, post); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: the response carries the real url unchanged, not the placeholder
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].ImageURL != "https://example.com/real-image.jpg" {
+		t.Errorf("expected real image url, got %q", got[0].ImageURL)
+	}
+}
+
 func TestPosts_FiltersByDateParam(t *testing.T) {
 	// given: posts fetched on two different days
 	conn := newTestDB(t)

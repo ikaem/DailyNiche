@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -22,8 +23,33 @@ type PostResponse struct {
 	Title          string    `json:"title"`
 	URL            string    `json:"url"`
 	ContentSummary string    `json:"content_summary"`
+	ImageURL       string    `json:"image_url"`
 	PublishedAt    time.Time `json:"published_at"`
 	FetchedAt      time.Time `json:"fetched_at"`
+}
+
+// placeholderImageSVG is a generic "no image" glyph (a photo icon: a sun and
+// mountains on a neutral ground) built from plain shapes, no external asset.
+const placeholderImageSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">` +
+	`<rect width="400" height="300" fill="#e5e5e5"/>` +
+	`<circle cx="150" cy="110" r="25" fill="#bdbdbd"/>` +
+	`<polygon points="60,240 160,140 220,200 280,120 340,240" fill="#bdbdbd"/>` +
+	`</svg>`
+
+// placeholderImageURL substitutes for a post's image_url when a feed
+// provided none. Decided (2026-07-13, see CLAUDE.md Task 2.3) that this
+// fallback belongs here, in the API layer, not in each client - so any
+// future client (web, mobile, ...) gets consistent placeholder behavior for
+// free. An inline SVG data URI keeps it self-contained: no static-file
+// route or externally-hosted dependency needed.
+var placeholderImageURL = "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(placeholderImageSVG))
+
+// imageURLOrPlaceholder returns url, or placeholderImageURL if url is empty.
+func imageURLOrPlaceholder(url string) string {
+	if url != "" {
+		return url
+	}
+	return placeholderImageURL
 }
 
 // Posts returns an http.HandlerFunc for GET /api/posts, backed by conn.
@@ -80,6 +106,7 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 				Title:          p.Title,
 				URL:            p.URL,
 				ContentSummary: p.ContentSummary,
+				ImageURL:       imageURLOrPlaceholder(p.ImageURL),
 				PublishedAt:    p.PublishedAt,
 				FetchedAt:      p.FetchedAt,
 			})
