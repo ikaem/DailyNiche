@@ -7,6 +7,7 @@ import (
 
 	"github.com/karlo/dailyniche/internal/db"
 	"github.com/karlo/dailyniche/internal/handlers"
+	"github.com/karlo/dailyniche/internal/middleware"
 )
 
 func main() {
@@ -42,7 +43,7 @@ func main() {
 	mux.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, middleware.Logging(mux)); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
 }
