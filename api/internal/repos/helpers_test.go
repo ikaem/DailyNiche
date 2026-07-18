@@ -33,6 +33,7 @@ func newTestPost(feedID int64, guid string) *models.Post {
 		Title:          "Sample Post",
 		URL:            "https://example.com/sample-post",
 		ContentSummary: "A sample post summary.",
+		ImageURL:       "https://example.com/sample-image.jpg",
 		PublishedAt:    time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 		FetchedAt:      time.Date(2024, 1, 1, 10, 5, 0, 0, time.UTC),
 		GUID:           guid,

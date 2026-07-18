@@ -13,10 +13,10 @@ import (
 // commonly re-list posts we've already stored on later fetches.
 func CreatePost(conn *sql.DB, post *models.Post) (int64, error) {
 	result, err := conn.Exec(
-		`INSERT INTO posts (feed_id, title, url, content_summary, published_at, fetched_at, guid, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO posts (feed_id, title, url, content_summary, image_url, published_at, fetched_at, guid, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(guid) DO NOTHING`,
-		post.FeedID, post.Title, post.URL, post.ContentSummary, post.PublishedAt, post.FetchedAt, post.GUID, time.Now().UTC(),
+		post.FeedID, post.Title, post.URL, post.ContentSummary, post.ImageURL, post.PublishedAt, post.FetchedAt, post.GUID, time.Now().UTC(),
 	)
 	if err != nil {
 		return 0, err
@@ -47,7 +47,7 @@ func ListPostsByDate(conn *sql.DB, date time.Time) ([]models.Post, error) {
 	// end   = 2024-03-17 00:00:00 UTC
 
 	rows, err := conn.Query(
-		`SELECT id, feed_id, title, url, content_summary, published_at, fetched_at, guid, created_at
+		`SELECT id, feed_id, title, url, content_summary, image_url, published_at, fetched_at, guid, created_at
 		 FROM posts
 		 WHERE fetched_at >= ? AND fetched_at < ?
 		 ORDER BY published_at DESC`,
@@ -62,7 +62,7 @@ func ListPostsByDate(conn *sql.DB, date time.Time) ([]models.Post, error) {
 // ListPostsByFeed returns every post for feedID, newest published first.
 func ListPostsByFeed(conn *sql.DB, feedID int64) ([]models.Post, error) {
 	rows, err := conn.Query(
-		`SELECT id, feed_id, title, url, content_summary, published_at, fetched_at, guid, created_at
+		`SELECT id, feed_id, title, url, content_summary, image_url, published_at, fetched_at, guid, created_at
 		 FROM posts
 		 WHERE feed_id = ?
 		 ORDER BY published_at DESC`,
@@ -91,7 +91,7 @@ func scanPosts(rows *sql.Rows) ([]models.Post, error) {
 	posts := []models.Post{}
 	for rows.Next() {
 		var p models.Post
-		if err := rows.Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.ImageURL, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		posts = append(posts, p)

@@ -36,6 +36,34 @@ func TestCreatePost_InsertsNewPost(t *testing.T) {
 	}
 }
 
+func TestCreatePost_RoundTripsImageURL(t *testing.T) {
+	// given: a post with an image URL
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	post := newTestPost(feedID, "urn:uuid:image-post")
+
+	// when: we create it and read it back via ListPostsByFeed (scanPosts)
+	if _, err := CreatePost(conn, post); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	posts, err := ListPostsByFeed(conn, feedID)
+	if err != nil {
+		t.Fatalf("ListPostsByFeed() returned error: %v", err)
+	}
+
+	// then: the image url survives the round trip through both the INSERT
+	// and the SELECT/Scan
+	if len(posts) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(posts))
+	}
+	if posts[0].ImageURL != post.ImageURL {
+		t.Errorf("expected image url %q, got %q", post.ImageURL, posts[0].ImageURL)
+	}
+}
+
 func TestCreatePost_SkipsDuplicateGUID(t *testing.T) {
 	// given: a post already created with a given GUID
 	conn := newTestDB(t)
