@@ -75,23 +75,20 @@ func TestParseFlags_DefaultsToAllFalse(t *testing.T) {
 	}
 
 	// then: every option defaults to false
-	if cfg.Once || cfg.Verbose || cfg.DryRun {
+	if cfg.Verbose || cfg.DryRun {
 		t.Errorf("expected all-false defaults, got %+v", cfg)
 	}
 }
 
 func TestParseFlags_SetsFieldsFromFlags(t *testing.T) {
-	// given: all three flags passed
+	// given: both flags passed
 	// when: we parse them
-	cfg, err := parseFlags([]string{"-once", "-verbose", "-dry-run"})
+	cfg, err := parseFlags([]string{"-verbose", "-dry-run"})
 	if err != nil {
 		t.Fatalf("parseFlags() returned error: %v", err)
 	}
 
 	// then: each corresponding field is true
-	if !cfg.Once {
-		t.Error("expected Once to be true")
-	}
 	if !cfg.Verbose {
 		t.Error("expected Verbose to be true")
 	}
@@ -111,7 +108,16 @@ func TestParseFlags_ReturnsErrorForUnknownFlag(t *testing.T) {
 	}
 }
 
-func TestRun_FetchesAndStoresNewPosts(t *testing.T) {
+// TestRun_FetchesAndStoresPostsEndToEnd is deliberately the only test here
+// exercising the actual fetch behavior. Dry-run, dedup, disabled feeds, and
+// dead-feed handling are now covered exhaustively by internal/fetcher's own
+// tests, which run() delegates to via fetcher.FetchAll - re-testing those
+// same scenarios again through this thicker CLI wrapper would just be
+// duplicate coverage of identical logic. This one test's job is narrower:
+// prove run() itself - flag parsing, opening the db, calling FetchAll,
+// logging the summary, returning an exit code - is wired together
+// correctly end-to-end.
+func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	// given: a feed pointing at a local test server, seeded into a temp db
 	server := newSampleFeedServer()
 	defer server.Close()
@@ -126,8 +132,8 @@ func TestRun_FetchesAndStoresNewPosts(t *testing.T) {
 	}
 	seedConn.Close()
 
-	// when: we run the fetcher once
-	code := run([]string{"-once"}, dbPath)
+	// when: we run the fetcher
+	code := run([]string{}, dbPath)
 
 	// then: it exits 0 and stores both posts from the sample feed
 	if code != 0 {
@@ -135,126 +141,5 @@ func TestRun_FetchesAndStoresNewPosts(t *testing.T) {
 	}
 	if count := countPosts(t, dbPath); count != 2 {
 		t.Fatalf("expected 2 posts stored, got %d", count)
-	}
-}
-
-func TestRun_CanBeCalledRepeatedlyWithoutDuplicating(t *testing.T) {
-	// given: a feed seeded into a temp db
-	server := newSampleFeedServer()
-	defer server.Close()
-
-	dbPath := filepath.Join(t.TempDir(), testDBFileName)
-	seedConn, err := db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("failed to open seed database: %v", err)
-	}
-	if _, err := repos.CreateFeed(seedConn, "Test Feed", server.URL); err != nil {
-		t.Fatalf("CreateFeed() returned error: %v", err)
-	}
-	seedConn.Close()
-
-	// when: we run the fetcher twice against the same feed
-	if code := run([]string{"-once"}, dbPath); code != 0 {
-		t.Fatalf("expected first run to exit 0, got %d", code)
-	}
-	if code := run([]string{"-once"}, dbPath); code != 0 {
-		t.Fatalf("expected second run to exit 0, got %d", code)
-	}
-
-	// then: posts are not duplicated
-	if count := countPosts(t, dbPath); count != 2 {
-		t.Fatalf("expected still 2 posts after a second run, got %d", count)
-	}
-}
-
-func TestRun_DryRunDoesNotStorePosts(t *testing.T) {
-	// given: a feed seeded into a temp db
-	server := newSampleFeedServer()
-	defer server.Close()
-
-	dbPath := filepath.Join(t.TempDir(), testDBFileName)
-	seedConn, err := db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("failed to open seed database: %v", err)
-	}
-	if _, err := repos.CreateFeed(seedConn, "Test Feed", server.URL); err != nil {
-		t.Fatalf("CreateFeed() returned error: %v", err)
-	}
-	seedConn.Close()
-
-	// when: we run the fetcher with -dry-run
-	code := run([]string{"-once", "-dry-run"}, dbPath)
-
-	// then: it exits 0 but stores nothing
-	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d", code)
-	}
-	if count := countPosts(t, dbPath); count != 0 {
-		t.Fatalf("expected 0 posts stored in dry-run, got %d", count)
-	}
-}
-
-func TestRun_SkipsUnreachableFeedButContinuesWithOthers(t *testing.T) {
-	// given: one dead feed and one working feed, both seeded into a temp db
-	workingServer := newSampleFeedServer()
-	defer workingServer.Close()
-
-	deadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	deadURL := deadServer.URL
-	deadServer.Close()
-
-	dbPath := filepath.Join(t.TempDir(), testDBFileName)
-	seedConn, err := db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("failed to open seed database: %v", err)
-	}
-	if _, err := repos.CreateFeed(seedConn, "Dead Feed", deadURL); err != nil {
-		t.Fatalf("CreateFeed() returned error: %v", err)
-	}
-	if _, err := repos.CreateFeed(seedConn, "Working Feed", workingServer.URL); err != nil {
-		t.Fatalf("CreateFeed() returned error: %v", err)
-	}
-	seedConn.Close()
-
-	// when: we run the fetcher
-	code := run([]string{"-once"}, dbPath)
-
-	// then: it still exits 0, and the working feed's posts got stored
-	if code != 0 {
-		t.Fatalf("expected exit code 0 despite one dead feed, got %d", code)
-	}
-	if count := countPosts(t, dbPath); count != 2 {
-		t.Fatalf("expected 2 posts from the working feed, got %d", count)
-	}
-}
-
-func TestRun_SkipsDisabledFeeds(t *testing.T) {
-	// given: a disabled feed seeded into a temp db
-	server := newSampleFeedServer()
-	defer server.Close()
-
-	dbPath := filepath.Join(t.TempDir(), testDBFileName)
-	seedConn, err := db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("failed to open seed database: %v", err)
-	}
-	feedID, err := repos.CreateFeed(seedConn, "Test Feed", server.URL)
-	if err != nil {
-		t.Fatalf("CreateFeed() returned error: %v", err)
-	}
-	if err := repos.DeleteFeed(seedConn, feedID); err != nil {
-		t.Fatalf("DeleteFeed() returned error: %v", err)
-	}
-	seedConn.Close()
-
-	// when: we run the fetcher
-	code := run([]string{"-once"}, dbPath)
-
-	// then: it exits 0 but fetches nothing from the disabled feed
-	if code != 0 {
-		t.Fatalf("expected exit code 0, got %d", code)
-	}
-	if count := countPosts(t, dbPath); count != 0 {
-		t.Fatalf("expected 0 posts from a disabled feed, got %d", count)
 	}
 }

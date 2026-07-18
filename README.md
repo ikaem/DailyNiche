@@ -46,7 +46,7 @@ go run ./cmd/api
 **Terminal 2 - Feed fetcher (one-shot):**
 ```bash
 cd api
-go run ./cmd/fetcher -once -verbose
+go run ./cmd/fetcher -verbose
 ```
 
 **Terminal 3 - Frontend dev server:**

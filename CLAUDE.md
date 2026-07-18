@@ -252,7 +252,7 @@ Once the commit is made, I start the next step with its context.
 
 - [x] **2.2: Create CLI fetcher scaffold** (1 hour)
   - [x] Create cmd/fetcher/main.go with:
-    - `-once` flag (run and exit)
+    - ~~`-once` flag (run and exit)~~ - **removed 2026-07-18**: it never actually gated any behavior (the fetch loop always ran exactly one pass regardless of the flag's value, verified via grep before removing it) - vestigial, likely a placeholder for a hypothetical internal "daemon" loop mode that was never built. The project settled on external cron/host scheduling instead (confirmed again for Task 9.3), so that mode was never going to be needed. Every `-once` reference in the Makefile/README/cron examples below was updated alongside the removal.
     - `-verbose` flag
     - `-dry-run` flag
     - Database initialization
@@ -335,9 +335,11 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 5: Cron & Scheduling (~2 hours)
 
+**Not optional - reclassified as vital (2026-07-18).** The dependency graph below originally marked this "OPTIONAL FOR MVP (DEFER)," reasoning that manual `make fetcher` runs were good enough short-term. Reconsidered: without a real, recurring way to pull in new posts, there is no ongoing source of real data at all - the daily-magazine premise of this whole app depends on posts actually accumulating day over day, not on manually re-running a command. See the dependency graph note below, kept for history, but Phase 5 itself is not deferred.
+
 - [ ] **5.1: Optimize fetcher for cron** (1 hour)
   - [ ] Ensure cmd/fetcher runs cleanly in one shot
-  - [ ] Document cron setup: `0 3 * * * /path/to/fetcher -once`
+  - [ ] Document cron setup: `0 3 * * * /path/to/fetcher`
   - [ ] Verify: posts get today's date
   - PR: "docs: prepare fetcher for cron scheduling"
 
@@ -348,6 +350,15 @@ Once the commit is made, I start the next step with its context.
   - [ ] Graceful shutdown on SIGTERM
   - [ ] Update README with cron setup instructions
   - PR: "feat: add logging and error handling to fetcher"
+
+- [ ] **5.3: On-demand fetch from the dashboard** (added 2026-07-18, building now)
+  - **Motivation:** cron only runs once a day - a user adding a new feed, or just wanting fresh posts right now, otherwise has to wait until tomorrow's scheduled run. A dashboard button closes that gap.
+  - [ ] Extract `cmd/fetcher/main.go`'s `run()` loop (fetch each enabled feed, extract items, store posts, count new/duplicate/error) into a reusable `internal/fetcher` package (e.g. `FetchAll(conn, Options) (Summary, error)`), callable from both the CLI and a new HTTP handler - not shelling out to a separate binary, the same logic reused from two entry points.
+  - [ ] `cmd/fetcher/main.go`'s `run()` becomes a thin wrapper: parse flags, open the db, call `fetcher.FetchAll`, log the summary, return an exit code.
+  - [ ] New `POST /api/fetch` endpoint on the Go API calling `fetcher.FetchAll` and returning the summary as JSON.
+  - [ ] Dashboard gets a "Fetch now" button wired via a form action (same server-to-server pattern as `addFeed`/`deleteFeed`), calling the new endpoint.
+  - [ ] **Progress feedback: decided (2026-07-18) to start with the simple synchronous approach** - the action blocks until `FetchAll` fully completes, then returns the summary; the button shows a loading/disabled state meanwhile. Explicitly NOT building async job-tracking/polling/streaming progress for this - a personal project with a handful of feeds likely fetches in well under a few seconds, so a blocking request is probably genuinely sufficient, not a compromise. Revisit only if real usage shows fetches taking long enough to actually need it.
+  - PR: "feat: add on-demand fetch endpoint and dashboard button"
 
 ---
 
@@ -440,7 +451,7 @@ THEN FRONTEND:
 THEN POLISH:
 8.1, 8.2, 8.3 (can parallelize)
 
-OPTIONAL FOR MVP (DEFER):
+OPTIONAL FOR MVP (DEFER) - ORIGINAL PLAN, SUPERSEDED (see Phase 5's note above - reclassified as vital 2026-07-18):
 5.1, 5.2 (just use system cron locally until later)
 
 DEPLOYMENT (PHASE 9 - DO LAST):
@@ -546,14 +557,15 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
   - PR: "docs: document Raspberry Pi deployment and Cloudflare Tunnel setup"
 
 - [ ] **9.3: Set up daily cron job on Pi** (1 hour)
+  - **Confirmed (2026-07-18):** cron runs on the Pi's host OS, not inside the container - explicitly discussed and decided against running a cron daemon inside the Docker container (would need an init system like tini/supervisord to manage two processes in one container, real added complexity for no benefit). The host already has cron; it just needs to invoke the container from outside on schedule, per the `docker-compose exec` line already below.
   - [ ] SSH into Pi
   - [ ] Create cron entry to run fetcher daily:
     ```bash
-    0 3 * * * cd /path/to/DailyNiche && api/cmd/fetcher -once -verbose
+    0 3 * * * cd /path/to/DailyNiche && api/cmd/fetcher -verbose
     ```
     Or if using Docker:
     ```bash
-    0 3 * * * docker-compose -f /path/to/docker-compose.yml exec api /app/fetcher -once -verbose
+    0 3 * * * docker-compose -f /path/to/docker-compose.yml exec api /app/fetcher -verbose
     ```
   - [ ] Test: manually run the command, verify posts are fetched
   - [ ] Set up log rotation (optional, logs don't grow too fast for personal use)
@@ -575,7 +587,7 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
 ```bash
 cd api
 go run ./cmd/api          # Start API server (port 8080)
-go run ./cmd/fetcher -once -verbose  # Run feed fetcher once
+go run ./cmd/fetcher -verbose  # Run feed fetcher once
 go run ./cmd/seed         # Seed sample feeds/posts for manual testing (dev only)
 ```
 

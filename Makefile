@@ -23,10 +23,10 @@ api:
 	cd api && go run ./cmd/api
 
 fetcher:
-	cd api && go run ./cmd/fetcher -once -verbose
+	cd api && go run ./cmd/fetcher -verbose
 
 fetcher-dry:
-	cd api && go run ./cmd/fetcher -once -verbose -dry-run
+	cd api && go run ./cmd/fetcher -verbose -dry-run
 
 seed:
 	cd api && go run ./cmd/seed
