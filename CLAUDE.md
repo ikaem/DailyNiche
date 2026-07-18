@@ -299,17 +299,13 @@ Once the commit is made, I start the next step with its context.
 
 ### PHASE 4: REST API (~2-3 hours)
 
-- [ ] **4.1: Set up HTTP server and middleware** (1.5 hours)
-  - **CORS middleware may no longer be needed at all** (re-evaluate before building this item specifically): the frontend's Task 6.1 architecture pivot means the browser never calls the Go API directly - all reads go through SvelteKit `load` functions and all writes through form `actions`, both server-to-server. CORS only matters for browser-originated cross-origin requests, so as long as that BFF pattern holds for every future frontend feature too, this specific bullet can likely be dropped from this task rather than implemented. Logging middleware, error formatting, and the `http.NewServeMux()` switch are unaffected and still worth doing.
-  - [ ] Create cmd/api/main.go with:
-    - HTTP server on port 8080 (configurable via env)
-    - ~~CORS middleware (allow localhost:5173)~~ - see note above, likely unnecessary now
-    - Logging middleware
-    - Error response formatting
-    - Health check: GET /health
-  - [ ] Switch from the global `http.HandleFunc`/`DefaultServeMux` (used since Task 1.5) to an explicit `mux := http.NewServeMux()` - needed to cleanly wrap routes with logging middleware, and to stop relying on shared global state now that there are 5 routes registered (`/health`, `/api/posts`, `GET/POST /api/feeds`, `DELETE /api/feeds/{id}`)
-  - [ ] Use standard library net/http
-  - [ ] Test: `/health` returns 200 with `{"status":"ok"}`
+- [x] **4.1: Set up HTTP server and middleware** (1.5 hours)
+  - **CORS middleware dropped entirely, not just deferred** - the frontend's Task 6.1 architecture pivot means the browser never calls the Go API directly (all reads via `load`, all writes via form `actions`, both server-to-server), so there was never a cross-origin request for CORS to apply to.
+  - `cmd/api/main.go` switched from the global `http.HandleFunc`/`DefaultServeMux` to an explicit `mux := http.NewServeMux()` - verified live via curl that all 5 routes still resolve identically.
+  - `internal/middleware/logging.go`: a `Logging(next http.Handler) http.Handler` wrapping the *entire* mux (not each handler individually) - one wrap covers every route including ones added later, and also catches requests to unmatched paths (verified live: a 404 to a nonexistent path still gets logged), which per-handler wrapping would have missed entirely. Uses a small `statusRecorder` (embeds `http.ResponseWriter`, overrides only `WriteHeader` to capture the status code, since the standard library has no way to read back what was already written).
+  - `internal/handlers/errors.go`: a `writeError(w, message, status)` helper emitting `{"error": "message"}`, replacing all 15 `http.Error` (plain text) call sites across `feeds_handler.go`/`posts_handler.go` - consistent with every success response already being JSON. Verified live via curl that error responses are now valid, parseable JSON with the right `Content-Type`.
+  - `web/src/lib/server/api.ts`'s `apiFetch` updated to actually read this new JSON error body (`errorMessage` helper) instead of only ever using a generic "failed with status X" message, falling back to that generic message if the body isn't valid JSON (e.g. some future intermediary). Verified live end-to-end: submitting a duplicate feed URL through the real dashboard now shows Go's actual message ("a feed with this url already exists"), not the old generic text.
+  - Built across 5 separate commits by deliberate request (explicit mux -> logging middleware -> wire it in -> JSON error formatting -> frontend consumption of the real error message).
   - PR: "feat: initialize HTTP API server"
 
 - [x] **4.2: Implement feed management API endpoints** (1.5 hours)
@@ -452,7 +448,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Phases 0-4 (backend), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system) and Task 2.3 (post images) - the full vertical slice works end-to-end with real images rendering, verified live in a browser. Remaining open items, in no particular required order: 4.1's logging middleware/error formatting (CORS itself is likely unnecessary now - see its note), Phase 5 (cron/observability polish for the fetcher), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
+**Next task:** Phases 0-4 (backend, including 4.1's logging/error middleware), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system) and Task 2.3 (post images) - the full vertical slice works end-to-end with real images rendering and real API error messages surfacing in the UI, verified live in a browser. Remaining open items, in no particular required order: Phase 5 (cron/observability polish for the fetcher), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
 
 ---
 
@@ -624,3 +620,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 7.4: Feed management UI - dashboard/+page.svelte + +page.server.ts (load + addFeed/deleteFeed actions), verified live end-to-end
 - [x] 1.3: Add lightweight DB migration system - hand-rolled, numbered migrations/*.sql embedded via embed.FS, schema_migrations tracking table, built as a learning exercise ahead of its original data-loss trigger
 - [x] 2.3: Add post images to the pipeline - image_url column/field/parsing/repo/API plumbing, server-side inline-SVG placeholder for posts with no image, verified live end-to-end
+- [x] 4.1: Set up HTTP server and middleware - explicit http.NewServeMux(), logging middleware wrapping the whole mux, JSON error responses (writeError), frontend now surfaces the real Go error message; CORS dropped entirely (browser never calls Go directly)
