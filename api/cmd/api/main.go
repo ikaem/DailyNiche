@@ -28,21 +28,21 @@ func main() {
 		port = "8080"
 	}
 
-	// HandleFunc registers into net/http's global DefaultServeMux, not a mux
-	// we control. Fine for this one learning-exercise route; Phase 4.1 will
-	// switch to an explicit http.NewServeMux() once middleware/more routes
-	// are added, to avoid relying on shared global state.
-	http.HandleFunc("/health", handlers.Health)
-	http.HandleFunc("/api/posts", handlers.Posts(conn))
+	// An explicit mux, not net/http's global DefaultServeMux - needed to
+	// cleanly wrap routes with middleware (logging, added next) without
+	// relying on shared global state.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", handlers.Health)
+	mux.HandleFunc("/api/posts", handlers.Posts(conn))
 	// GET and POST share the same literal path, so both need an explicit
 	// method prefix - registering the same bare "/api/feeds" pattern twice
 	// would panic at startup.
-	http.HandleFunc("GET /api/feeds", handlers.Feeds(conn))
-	http.HandleFunc("POST /api/feeds", handlers.CreateFeed(conn))
-	http.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
+	mux.HandleFunc("GET /api/feeds", handlers.Feeds(conn))
+	mux.HandleFunc("POST /api/feeds", handlers.CreateFeed(conn))
+	mux.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}
 }
