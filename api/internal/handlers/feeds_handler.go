@@ -44,7 +44,7 @@ func Feeds(conn *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		feedList, err := repos.ListFeeds(conn)
 		if err != nil {
-			http.Error(w, "failed to list feeds", http.StatusInternalServerError)
+			writeError(w, "failed to list feeds", http.StatusInternalServerError)
 			return
 		}
 
@@ -70,40 +70,40 @@ func CreateFeed(conn *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req createFeedRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			writeError(w, "invalid JSON body", http.StatusBadRequest)
 			return
 		}
 
 		name := strings.TrimSpace(req.Name)
 		if name == "" {
-			http.Error(w, "name is required", http.StatusBadRequest)
+			writeError(w, "name is required", http.StatusBadRequest)
 			return
 		}
 
 		rawURL := strings.TrimSpace(req.URL)
 		if rawURL == "" {
-			http.Error(w, "url is required", http.StatusBadRequest)
+			writeError(w, "url is required", http.StatusBadRequest)
 			return
 		}
 		parsedURL, err := url.ParseRequestURI(rawURL)
 		if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
-			http.Error(w, "url must be a valid absolute URL", http.StatusBadRequest)
+			writeError(w, "url must be a valid absolute URL", http.StatusBadRequest)
 			return
 		}
 
 		id, err := repos.CreateFeed(conn, name, rawURL)
 		if err != nil {
 			if errors.Is(err, repos.ErrDuplicateURL) {
-				http.Error(w, "a feed with this url already exists", http.StatusConflict)
+				writeError(w, "a feed with this url already exists", http.StatusConflict)
 				return
 			}
-			http.Error(w, "failed to create feed", http.StatusInternalServerError)
+			writeError(w, "failed to create feed", http.StatusInternalServerError)
 			return
 		}
 
 		feed, err := repos.GetFeed(conn, id)
 		if err != nil {
-			http.Error(w, "failed to load created feed", http.StatusInternalServerError)
+			writeError(w, "failed to load created feed", http.StatusInternalServerError)
 			return
 		}
 
@@ -120,7 +120,7 @@ func DeleteFeed(conn *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 		if err != nil {
-			http.Error(w, "invalid feed id", http.StatusBadRequest)
+			writeError(w, "invalid feed id", http.StatusBadRequest)
 			return
 		}
 
@@ -128,12 +128,12 @@ func DeleteFeed(conn *sql.DB) http.HandlerFunc {
 		// (an UPDATE matching zero rows isn't an error) - check existence
 		// via GetFeed first, so a nonexistent id correctly returns 404.
 		if _, err := repos.GetFeed(conn, id); err != nil {
-			http.Error(w, "feed not found", http.StatusNotFound)
+			writeError(w, "feed not found", http.StatusNotFound)
 			return
 		}
 
 		if err := repos.DeleteFeed(conn, id); err != nil {
-			http.Error(w, "failed to delete feed", http.StatusInternalServerError)
+			writeError(w, "failed to delete feed", http.StatusInternalServerError)
 			return
 		}
 

@@ -59,7 +59,7 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		date, err := parseDateParam(r.URL.Query().Get("date"))
 		if err != nil {
-			http.Error(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
+			writeError(w, "invalid date, expected YYYY-MM-DD", http.StatusBadRequest)
 			return
 		}
 
@@ -71,7 +71,7 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 		if raw := r.URL.Query().Get("feed_id"); raw != "" {
 			id, err := strconv.ParseInt(raw, 10, 64)
 			if err != nil {
-				http.Error(w, "invalid feed_id", http.StatusBadRequest)
+				writeError(w, "invalid feed_id", http.StatusBadRequest)
 				return
 			}
 			feedIDFilter = &id
@@ -84,13 +84,13 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 		// for this to matter (e.g. add a ListPostsByDateAndFeed repo func).
 		posts, err := repos.ListPostsByDate(conn, date)
 		if err != nil {
-			http.Error(w, "failed to list posts", http.StatusInternalServerError)
+			writeError(w, "failed to list posts", http.StatusInternalServerError)
 			return
 		}
 
 		feedNames, err := feedNameLookup(conn)
 		if err != nil {
-			http.Error(w, "failed to list feeds", http.StatusInternalServerError)
+			writeError(w, "failed to list feeds", http.StatusInternalServerError)
 			return
 		}
 
