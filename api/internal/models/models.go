@@ -17,6 +17,7 @@ type Post struct {
 	Title          string
 	URL            string
 	ContentSummary string
+	ImageURL       string
 	PublishedAt    time.Time
 	FetchedAt      time.Time
 	GUID           string

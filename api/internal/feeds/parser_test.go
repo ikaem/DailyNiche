@@ -21,6 +21,7 @@ const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
     <guid>urn:uuid:first-post</guid>
     <description>The first post summary.</description>
     <pubDate>Mon, 01 Jan 2024 10:00:00 GMT</pubDate>
+    <enclosure url="https://example.com/first-post.jpg" type="image/jpeg" length="12345" />
   </item>
   <item>
     <title>Second Post</title>
@@ -98,9 +99,29 @@ func TestExtractItems_ConvertsItemsToPosts(t *testing.T) {
 	if first.ContentSummary != "The first post summary." {
 		t.Errorf("expected content summary %q, got %q", "The first post summary.", first.ContentSummary)
 	}
+	if first.ImageURL != "https://example.com/first-post.jpg" {
+		t.Errorf("expected image url %q, got %q", "https://example.com/first-post.jpg", first.ImageURL)
+	}
 	wantPublished := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 	if !first.PublishedAt.Equal(wantPublished) {
 		t.Errorf("expected published_at %v, got %v", wantPublished, first.PublishedAt)
+	}
+}
+
+func TestExtractItems_LeavesImageURLEmptyWhenFeedProvidesNone(t *testing.T) {
+	// given: a parsed feed whose second item has no <enclosure>
+	feed, err := gofeed.NewParser().ParseString(sampleRSS)
+	if err != nil {
+		t.Fatalf("failed to parse sample feed: %v", err)
+	}
+
+	// when: we extract items
+	posts := ExtractItems(feed, 1)
+
+	// then: the item without an image has an empty ImageURL, not a nil-pointer panic
+	second := posts[1]
+	if second.ImageURL != "" {
+		t.Errorf("expected empty image url, got %q", second.ImageURL)
 	}
 }
 

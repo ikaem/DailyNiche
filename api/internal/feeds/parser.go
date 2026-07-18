@@ -23,6 +23,7 @@ func ExtractItems(feed *gofeed.Feed, feedID int64) []models.Post {
 			Title:          item.Title,
 			URL:            item.Link,
 			ContentSummary: contentSummary(item),
+			ImageURL:       imageURL(item),
 			PublishedAt:    publishedAt(item),
 			FetchedAt:      time.Now().UTC(),
 			GUID:           guid(item),
@@ -47,6 +48,15 @@ func contentSummary(item *gofeed.Item) string {
 		return item.Description
 	}
 	return item.Content
+}
+
+// imageURL returns the item's image URL, or an empty string if the feed
+// provided none - not every feed includes one.
+func imageURL(item *gofeed.Item) string {
+	if item.Image != nil {
+		return item.Image.URL
+	}
+	return ""
 }
 
 // publishedAt prefers the item's parsed publish date, falling back to its
