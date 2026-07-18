@@ -2,13 +2,14 @@ package db
 
 import (
 	"database/sql"
-	_ "embed"
+	"embed"
+	"fmt"
 
 	_ "modernc.org/sqlite"
 )
 
-//go:embed schema.sql
-var schemaSQL string
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 // Init opens (creating if necessary) the SQLite database at path.
 func Init(path string) (*sql.DB, error) {
@@ -23,11 +24,32 @@ func Init(path string) (*sql.DB, error) {
 	return conn, nil
 }
 
-// Migrate applies schema.sql. Safe to call repeatedly - every statement in
-// schema.sql uses IF NOT EXISTS.
+// Migrate applies any migrations under migrations/ not yet recorded in
+// schema_migrations, in version order. Safe to call repeatedly.
 func Migrate(conn *sql.DB) error {
-	_, err := conn.Exec(schemaSQL)
-	return err
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		return fmt.Errorf("failed to create schema_migrations table: %w", err)
+	}
+
+	migrations, err := loadMigrations(migrationsFS)
+	if err != nil {
+		return fmt.Errorf("failed to load migrations: %w", err)
+	}
+
+	applied, err := appliedVersions(conn)
+	if err != nil {
+		return fmt.Errorf("failed to read applied migrations: %w", err)
+	}
+
+	for _, m := range migrations {
+		if applied[m.version] {
+			continue
+		}
+		if err := applyMigration(conn, m); err != nil {
+			return fmt.Errorf("failed to apply migration %04d_%s: %w", m.version, m.name, err)
+		}
+	}
+	return nil
 }
 
 // Open initializes and migrates the database in one call - the common path
