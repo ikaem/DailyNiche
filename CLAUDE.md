@@ -198,14 +198,13 @@ Once the commit is made, I start the next step with its context.
   - [x] Wire into cmd/api/main.go
   - PR: "feat: implement database initialization and migrations"
 
-- [ ] **1.3: Add lightweight DB migration system** (DEFERRED - see trigger below)
-  - **Do NOT build this yet.** `schema.sql` uses `CREATE TABLE IF NOT EXISTS`, which only works for a brand-new database - it silently does nothing to an existing one when columns are added/changed later (already happened once: adding `disabled_at` to `feeds`). Fine for now since no real database exists yet.
-  - **Trigger to actually build this:** once the fetcher (3.3) is running regularly and `dailyniche.db` holds real archived issues you don't want to lose. At that point "just delete the db and restart" stops being an acceptable fix for schema changes.
-  - **Second, independent justification (not a replacement for the trigger above, an additional reason):** building this is worth doing as a deliberate learning/engineering exercise in its own right, regardless of whether real production data exists yet. If we want to use that framing, Task 2.3's `image_url` column addition is a natural first real migration to write it against - decide at that point whether to still "just edit schema.sql directly" (still valid/safe per the trigger above) or use it as the occasion to build the migration system for real.
-  - [ ] Numbered migration files (e.g. `0001_init.sql`, `0002_add_disabled_at.sql`) instead of one full `schema.sql`
-  - [ ] `schema_migrations` table tracking which migrations have run
-  - [ ] On startup, apply any migrations not yet recorded, in order
-  - [ ] Consider `pressly/goose` or hand-roll (simple enough at this scale)
+- [x] **1.3: Add lightweight DB migration system** (built as a deliberate learning/engineering exercise, per the second justification below - not because the original data-loss trigger had been hit)
+  - Hand-rolled, not `pressly/goose` (matches the "learning exercise" framing, and simple enough at this scale per the original note).
+  - `api/internal/db/migrations/*.sql` - numbered files (`0001_init.sql`, `0002_add_image_url.sql`), embedded via `//go:embed migrations/*.sql` into an `embed.FS`.
+  - `migration.go`: `parseMigrationFilename` + `loadMigrations(fsys fs.FS)` parse and sort by version; deliberately takes an `fs.FS` parameter (not hardcoded to the real embedded files) so tests exercise sorting/error-handling via fabricated `testing/fstest.MapFS` filesystems instead of needing real files per scenario.
+  - `ensureSchemaMigrationsTable`/`appliedVersions`/`applyMigration` - the `schema_migrations` table (version, name, applied_at) tracks what's run; `applyMigration` runs a migration's SQL and records it in one transaction, so a failure partway through can't apply the SQL without recording it (or vice versa) - verified via a test that feeds it deliberately-invalid SQL and confirms nothing was recorded.
+  - `Migrate()` orchestrates all of the above: ensure the table, load migrations, diff against applied versions, apply what's pending, in order. Safe to call repeatedly (existing `Init`/`Migrate`/`Open` tests all still pass unchanged through this new path).
+  - Built across 5 separate commits by deliberate request (relocate schema -> pure parsing logic -> bookkeeping/apply logic -> wire into `Migrate()` -> delete the now-dead `schema.sql`), even though intermediate commits didn't leave the feature fully working - prioritized commit-by-commit reviewability over each commit being independently functional.
   - PR: "feat: add lightweight database migration system"
 
 - [ ] **1.4: Add `.env`-based configuration loading** (DEFERRED - see trigger below)
@@ -242,14 +241,13 @@ Once the commit is made, I start the next step with its context.
   - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
   - TODO: `gofeed`'s default `User-Agent` is the literal string `"Gofeed/1.0"` - some sites (confirmed live: a WordPress site running a security plugin) return `403 Forbidden` specifically for this signature, while a browser/curl/even bare Go UA all pass. Fix: set `parser.UserAgent` to something more neutral or honestly self-identifying (e.g. `"DailyNiche/1.0 (personal RSS reader)"`) before calling `ParseURL` - `gofeed.Parser` already exposes this field, no new dependency needed. Combine with the `Parser`-reuse TODO above when addressed, since both need the same "build one configured `Parser` instead of a fresh default one" change.
 
-- [ ] **2.3: Add post images to the pipeline** (DEFERRED - not urgent)
-  - **Do NOT build this yet.** The frontend design mockups (Task 6.0, `docs/design/issue/`) use dummy Unsplash placeholder images for every post. Real images aren't needed until those mockups get wired up to real Svelte components with live data (Phase 7) - until then, dummy images are fine.
-  - **Context:** verified live that `gofeed` already parses an image URL into `item.Image.URL` when a feed provides one (confirmed working against a real WordPress feed) - but our code currently discards it entirely. `models.Post` has no image field, `ExtractItems` never reads `item.Image`, and the `posts` table has no `image_url` column. Not every feed has an image though (confirmed varies by feed/platform) - the model must tolerate an empty/missing image gracefully, no fallback HTML-scraping needed for MVP.
-  - [ ] Add `image_url TEXT` column to `posts` in `schema.sql` (safe to edit directly still - no real archived data exists yet, per Task 1.3's migration-system trigger note - or see Task 1.3's second justification for using this column as the occasion to build the migration system instead)
-  - [ ] Add `ImageURL string` field to `models.Post`
-  - [ ] Update `ExtractItems` to populate it from `item.Image.URL` (empty string if the feed doesn't provide one)
-  - [ ] Update `post_repo.go`'s `CreatePost`/`scanPosts` SQL to include the new column
-  - [ ] Add `image_url` to `PostResponse` in `posts_handler.go` - **when a post has no image, the API response should carry a real placeholder image URL here, not an empty string.** Decided (2026-07-13) that the fallback belongs in the API layer, not per-client (web/mobile/etc.) - so any future client gets consistent placeholder behavior for free instead of reimplementing the same fallback logic. Still undecided: where the placeholder image comes from (self-hosted asset served by the Go API, vs. pointing to some third-party-hosted default) - decide at implementation time.
+- [x] **2.3: Add post images to the pipeline**
+  - `image_url TEXT` added to `posts` via `migrations/0002_add_image_url.sql` (the migration system's first real second migration, per Task 1.3).
+  - `models.Post.ImageURL`; `feeds.ExtractItems` populates it via a new `imageURL(item)` helper reading `item.Image.URL` (confirmed via gofeed's translator source: for plain RSS this comes from an `<enclosure type="image/...">` tag, not a channel-level `<image>`), empty string if the feed provides none.
+  - `post_repo.go`'s `CreatePost`/`scanPosts` plumb the column through; scanned into a plain `string` (not a nullable wrapper), consistent with how `ContentSummary` is already handled, since `CreatePost` always writes an explicit value.
+  - `PostResponse.image_url` in `posts_handler.go`, with `imageURLOrPlaceholder` substituting a constant when empty - decided (2026-07-13) the fallback belongs in the API layer, not per-client. The placeholder is a self-contained inline SVG data URI (`data:image/svg+xml;base64,...`, a generic mountain/sun "no image" glyph built from plain shapes) - no static-file route or externally-hosted dependency needed; rendered and visually confirmed correct, not just checked as well-formed XML.
+  - `web/src/lib/server/api.ts`'s `PostWire`/`toPost` read the real `image_url` instead of hardcoding `''` - the now-resolved TODO comment removed. No frontend component changes needed - `PostHero`/`PostMedium`/`PostListItem` already rendered `post.imageUrl`.
+  - Verified live end-to-end (real images rendering instead of broken-image icons).
   - PR: "feat: capture and serve post images"
 
 - [x] **2.2: Create CLI fetcher scaffold** (1 hour)
@@ -454,7 +452,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Phases 0-4 (backend), 6, and 7 (frontend) are all done - the full vertical slice works end-to-end: the SvelteKit frontend (issue page + dashboard) talks to the real Go API via server-side `load`/`actions`, verified live in a browser. Remaining open items, in no particular required order: 4.1's logging middleware/error formatting (CORS itself is likely unnecessary now - see its note), Phase 5 (cron/observability polish for the fetcher), Task 2.3 (post images), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
+**Next task:** Phases 0-4 (backend), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system) and Task 2.3 (post images) - the full vertical slice works end-to-end with real images rendering, verified live in a browser. Remaining open items, in no particular required order: 4.1's logging middleware/error formatting (CORS itself is likely unnecessary now - see its note), Phase 5 (cron/observability polish for the fetcher), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
 
 ---
 
@@ -624,3 +622,5 @@ npm run dev               # Start dev server (port 5173)
 - [x] 7.1 + 7.2: Above/below-the-fold sections - PostHero, PostMedium, PostListItem, AboveTheFold, BelowTheFold, DateNav
 - [x] 7.3: Bottom section - superseded by PostListItem/BelowTheFold
 - [x] 7.4: Feed management UI - dashboard/+page.svelte + +page.server.ts (load + addFeed/deleteFeed actions), verified live end-to-end
+- [x] 1.3: Add lightweight DB migration system - hand-rolled, numbered migrations/*.sql embedded via embed.FS, schema_migrations tracking table, built as a learning exercise ahead of its original data-loss trigger
+- [x] 2.3: Add post images to the pipeline - image_url column/field/parsing/repo/API plumbing, server-side inline-SVG placeholder for posts with no image, verified live end-to-end
