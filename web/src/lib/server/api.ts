@@ -24,6 +24,7 @@ interface PostWire {
 	title: string;
 	url: string;
 	content_summary: string;
+	image_url: string;
 	published_at: string;
 	fetched_at: string;
 }
@@ -37,14 +38,12 @@ interface FeedWire {
 	updated_at: string;
 }
 
-// TODO: imageUrl is always empty until Task 2.3 (post images pipeline) adds
-// image_url to the API response - see CLAUDE.md.
 function toPost(wire: PostWire): Post {
 	return {
 		id: wire.id,
 		title: wire.title,
 		description: wire.content_summary,
-		imageUrl: '',
+		imageUrl: wire.image_url,
 		url: wire.url,
 		feedName: wire.feed_name,
 		publishedAt: wire.published_at

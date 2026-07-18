@@ -29,6 +29,7 @@ describe('api', () => {
 				title: 'Go 2.0 Announced',
 				url: 'https://example.com/go-2-0',
 				content_summary: 'The Go team announces the next major version.',
+				image_url: 'https://example.com/go-2-0.jpg',
 				published_at: '2026-07-10T09:00:00Z',
 				fetched_at: '2026-07-10T09:05:00Z'
 			};
@@ -44,7 +45,7 @@ describe('api', () => {
 					id: 1,
 					title: 'Go 2.0 Announced',
 					description: 'The Go team announces the next major version.',
-					imageUrl: '',
+					imageUrl: 'https://example.com/go-2-0.jpg',
 					url: 'https://example.com/go-2-0',
 					feedName: 'Tech Blog',
 					publishedAt: '2026-07-10T09:00:00Z'
@@ -63,6 +64,7 @@ describe('api', () => {
 				title: 'Perfect Sourdough Starter',
 				url: 'https://example.com/sourdough',
 				content_summary: 'A no-fuss guide to your first starter.',
+				image_url: '',
 				published_at: '2026-07-13T11:15:00Z',
 				fetched_at: '2026-07-13T11:20:00Z'
 			};
@@ -71,7 +73,9 @@ describe('api', () => {
 			// when: requesting today's posts
 			const posts = await getPostsToday();
 
-			// then: fetch is called against /api/posts with no query string, and the post is mapped
+			// then: fetch is called against /api/posts with no query string, and the post is
+			// mapped (including passing an empty image_url through as-is - the Go API is
+			// responsible for ever substituting a placeholder, not this mapping layer)
 			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts`, undefined);
 			expect(posts).toEqual([
 				{
