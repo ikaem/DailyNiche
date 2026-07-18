@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"io/fs"
 	"sort"
@@ -59,4 +60,56 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 
 	sort.Slice(migrations, func(i, j int) bool { return migrations[i].version < migrations[j].version })
 	return migrations, nil
+}
+
+// ensureSchemaMigrationsTable creates the schema_migrations bookkeeping
+// table if it doesn't already exist. Safe to call repeatedly.
+func ensureSchemaMigrationsTable(conn *sql.DB) error {
+	_, err := conn.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+		version    INTEGER PRIMARY KEY,
+		name       TEXT NOT NULL,
+		applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
+	return err
+}
+
+// appliedVersions returns the set of migration versions already recorded in
+// schema_migrations. Assumes the table already exists (see
+// ensureSchemaMigrationsTable).
+func appliedVersions(conn *sql.DB) (map[int]bool, error) {
+	rows, err := conn.Query("SELECT version FROM schema_migrations")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	applied := make(map[int]bool)
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			return nil, err
+		}
+		applied[version] = true
+	}
+	return applied, rows.Err()
+}
+
+// applyMigration runs a single migration's SQL and records it as applied,
+// both inside one transaction - so a failure partway through never leaves
+// the database having run the SQL without recording it, or vice versa.
+// Assumes the schema_migrations table already exists.
+func applyMigration(conn *sql.DB, m migration) error {
+	tx, err := conn.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(m.sql); err != nil {
+		return err
+	}
+	if _, err := tx.Exec("INSERT INTO schema_migrations (version, name) VALUES (?, ?)", m.version, m.name); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

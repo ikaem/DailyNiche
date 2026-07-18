@@ -107,3 +107,154 @@ func TestLoadMigrations_ReturnsErrorForMalformedFilename(t *testing.T) {
 		t.Fatal("expected an error, got nil")
 	}
 }
+
+func TestEnsureSchemaMigrationsTable_CreatesTable(t *testing.T) {
+	// given: a fresh in-memory database
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+
+	// when: we ensure the schema_migrations table
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+
+	// then: the table exists
+	var name string
+	row := conn.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", "schema_migrations")
+	if err := row.Scan(&name); err != nil {
+		t.Fatalf("expected schema_migrations table to exist: %v", err)
+	}
+}
+
+func TestEnsureSchemaMigrationsTable_IsIdempotent(t *testing.T) {
+	// given: a database where the table has already been ensured once
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("first ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+
+	// when: we ensure it again
+	// then: it does not error
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("second ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+}
+
+func TestAppliedVersions_ReturnsEmptyWhenNoneRecorded(t *testing.T) {
+	// given: a fresh schema_migrations table with no rows
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+
+	// when: we read applied versions
+	applied, err := appliedVersions(conn)
+
+	// then: it's empty, not an error
+	if err != nil {
+		t.Fatalf("appliedVersions() returned error: %v", err)
+	}
+	if len(applied) != 0 {
+		t.Errorf("expected no applied versions, got %v", applied)
+	}
+}
+
+func TestAppliedVersions_ReturnsRecordedVersions(t *testing.T) {
+	// given: a schema_migrations table with two recorded versions
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+	if _, err := conn.Exec("INSERT INTO schema_migrations (version, name) VALUES (1, 'init'), (2, 'add_image_url')"); err != nil {
+		t.Fatalf("failed to seed schema_migrations: %v", err)
+	}
+
+	// when: we read applied versions
+	applied, err := appliedVersions(conn)
+
+	// then: both versions are present
+	if err != nil {
+		t.Fatalf("appliedVersions() returned error: %v", err)
+	}
+	if !applied[1] || !applied[2] {
+		t.Errorf("expected versions 1 and 2 to be applied, got %v", applied)
+	}
+}
+
+func TestApplyMigration_RunsSQLAndRecordsVersion(t *testing.T) {
+	// given: a fresh database with the bookkeeping table ready, and a
+	// migration that creates a table
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+	m := migration{version: 1, name: "create_example", sql: "CREATE TABLE example (id INTEGER)"}
+
+	// when: we apply it
+	if err := applyMigration(conn, m); err != nil {
+		t.Fatalf("applyMigration() returned error: %v", err)
+	}
+
+	// then: the migration's table was created
+	var name string
+	row := conn.QueryRow("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", "example")
+	if err := row.Scan(&name); err != nil {
+		t.Errorf("expected migration's table to exist: %v", err)
+	}
+
+	// and: it was recorded in schema_migrations
+	applied, err := appliedVersions(conn)
+	if err != nil {
+		t.Fatalf("appliedVersions() returned error: %v", err)
+	}
+	if !applied[1] {
+		t.Errorf("expected version 1 to be recorded as applied, got %v", applied)
+	}
+}
+
+func TestApplyMigration_RollsBackOnFailure(t *testing.T) {
+	// given: a migration with invalid SQL
+	conn, err := Init(":memory:")
+	if err != nil {
+		t.Fatalf("Init() returned error: %v", err)
+	}
+	defer conn.Close()
+	if err := ensureSchemaMigrationsTable(conn); err != nil {
+		t.Fatalf("ensureSchemaMigrationsTable() returned error: %v", err)
+	}
+	m := migration{version: 1, name: "broken", sql: "NOT VALID SQL"}
+
+	// when: we attempt to apply it
+	err = applyMigration(conn, m)
+
+	// then: it returns an error, and nothing was recorded as applied
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	applied, appliedErr := appliedVersions(conn)
+	if appliedErr != nil {
+		t.Fatalf("appliedVersions() returned error: %v", appliedErr)
+	}
+	if len(applied) != 0 {
+		t.Errorf("expected no versions recorded after a failed migration, got %v", applied)
+	}
+}
