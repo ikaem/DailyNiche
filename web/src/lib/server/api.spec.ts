@@ -186,5 +186,37 @@ describe('api', () => {
 				status: 409
 			});
 		});
+
+		it('uses the Go API\'s {"error": "..."} body as the message when present', async () => {
+			// given: the API rejects with its real JSON error body
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ error: 'a feed with this url already exists' }, 409)
+			);
+
+			// when: adding a feed that the API rejects
+			// then: the ApiError's message is the API's actual reason, not a generic one
+			await expect(addFeed('Dup', 'https://example.com/dup')).rejects.toMatchObject({
+				message: 'a feed with this url already exists',
+				status: 409
+			});
+		});
+
+		it('falls back to a generic message when the error body is not valid JSON', async () => {
+			// given: the response body isn't JSON at all (e.g. an intermediary
+			// returned something other than the Go API's own error response)
+			const notJsonResponse = {
+				ok: false,
+				status: 502,
+				json: () => Promise.reject(new SyntaxError('Unexpected token'))
+			} as Response;
+			vi.mocked(fetch).mockResolvedValue(notJsonResponse);
+
+			// when: adding a feed and the response can't be parsed as JSON
+			// then: it falls back to the generic status-based message, not a thrown SyntaxError
+			await expect(addFeed('Dup', 'https://example.com/dup')).rejects.toMatchObject({
+				message: 'API request to /api/feeds failed with status 502',
+				status: 502
+			});
+		});
 	});
 });

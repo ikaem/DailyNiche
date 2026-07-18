@@ -62,9 +62,29 @@ function toFeed(wire: FeedWire): Feed {
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
 	const res = await fetch(`${API_URL}${path}`, init);
 	if (!res.ok) {
-		throw new ApiError(`API request to ${path} failed with status ${res.status}`, res.status);
+		throw new ApiError(await errorMessage(res, path), res.status);
 	}
 	return res;
+}
+
+// errorMessage extracts the Go API's {"error": "..."} body (see
+// writeError in internal/handlers/errors.go) so callers see the actual
+// reason a request failed (e.g. "a feed with this url already exists")
+// instead of a generic status-only message. Falls back to the generic
+// message if the body isn't valid JSON in that shape - e.g. an
+// intermediary between here and the Go API returning something else
+// entirely (plain text, an HTML error page) shouldn't cause this to throw
+// and mask the original HTTP error.
+async function errorMessage(res: Response, path: string): Promise<string> {
+	try {
+		const body = await res.json();
+		if (typeof body?.error === 'string' && body.error) {
+			return body.error;
+		}
+	} catch {
+		// not valid JSON - fall through to the generic message
+	}
+	return `API request to ${path} failed with status ${res.status}`;
 }
 
 async function apiFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
