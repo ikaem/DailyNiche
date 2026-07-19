@@ -1,6 +1,6 @@
 import { API_URL } from '$env/static/private';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addFeed, deleteFeed, getFeeds, getPostsByDate, getPostsToday } from './api';
+import { addFeed, deleteFeed, fetchNow, getFeeds, getPostsByDate, getPostsToday } from './api';
 
 function mockResponse(body: unknown, status = 200): Response {
 	return {
@@ -171,6 +171,20 @@ describe('api', () => {
 
 			// then: fetch is called with DELETE against that feed's id
 			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/feeds/3`, { method: 'DELETE' });
+		});
+	});
+
+	describe('fetchNow', () => {
+		it('sends a POST request and maps the wire summary, renaming new to newCount', async () => {
+			// given: the API reports 3 new posts, 1 duplicate, 0 errors
+			vi.mocked(fetch).mockResolvedValue(mockResponse({ new: 3, duplicates: 1, errors: 0 }));
+
+			// when: triggering an on-demand fetch
+			const summary = await fetchNow();
+
+			// then: fetch is called with POST, and the wire's "new" field maps to newCount
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/fetch`, { method: 'POST' });
+			expect(summary).toEqual({ newCount: 3, duplicates: 1, errors: 0 });
 		});
 	});
 

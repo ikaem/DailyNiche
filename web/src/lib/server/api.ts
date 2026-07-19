@@ -1,5 +1,5 @@
 import { API_URL } from '$env/static/private';
-import type { Feed, Post } from '../types';
+import type { Feed, FetchSummary, Post } from '../types';
 
 // ApiError carries the HTTP status alongside the message, so callers (e.g.
 // FeedManager, Task 7.4) can branch on it - a 409 duplicate-URL response
@@ -38,6 +38,12 @@ interface FeedWire {
 	updated_at: string;
 }
 
+interface FetchSummaryWire {
+	new: number;
+	duplicates: number;
+	errors: number;
+}
+
 function toPost(wire: PostWire): Post {
 	return {
 		id: wire.id,
@@ -56,6 +62,14 @@ function toFeed(wire: FeedWire): Feed {
 		name: wire.name,
 		url: wire.url,
 		disabledAt: wire.disabled_at
+	};
+}
+
+function toFetchSummary(wire: FetchSummaryWire): FetchSummary {
+	return {
+		newCount: wire.new,
+		duplicates: wire.duplicates,
+		errors: wire.errors
 	};
 }
 
@@ -118,4 +132,9 @@ export async function addFeed(name: string, url: string): Promise<Feed> {
 
 export async function deleteFeed(id: number): Promise<void> {
 	await apiFetch(`/api/feeds/${id}`, { method: 'DELETE' });
+}
+
+export async function fetchNow(): Promise<FetchSummary> {
+	const wire = await apiFetchJson<FetchSummaryWire>('/api/fetch', { method: 'POST' });
+	return toFetchSummary(wire);
 }

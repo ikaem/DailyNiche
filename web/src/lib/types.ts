@@ -32,3 +32,14 @@ export interface Feed {
 	url: string;
 	disabledAt: string | null;
 }
+
+// FetchSummary reports what an on-demand fetch (POST /api/fetch) did.
+// newCount, not new - "new" is a reserved word in JS/TS, so it can't be
+// used as a destructured binding name (`const { new } = summary` is a
+// syntax error) even though it's fine as a plain property key. Renamed
+// here rather than carrying that friction into every caller.
+export interface FetchSummary {
+	newCount: number;
+	duplicates: number;
+	errors: number;
+}
