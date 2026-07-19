@@ -3,7 +3,8 @@ package fetcher
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
 
 	"github.com/karlo/dailyniche/internal/feeds"
 	"github.com/karlo/dailyniche/internal/repos"
@@ -11,8 +12,7 @@ import (
 
 // Options controls how FetchAll behaves.
 type Options struct {
-	Verbose bool
-	DryRun  bool
+	DryRun bool
 }
 
 // Summary reports what happened during a FetchAll run.
@@ -29,7 +29,18 @@ type Summary struct {
 // from being fetched. Callable from both the CLI (cmd/fetcher) and the API
 // (an on-demand fetch endpoint) - the same loop, reused from two entry
 // points rather than duplicated or shelled out to as a separate process.
+//
+// Logging goes through the global slog default logger rather than an
+// injected instance, matching this codebase's existing plain-global-logger
+// convention (see middleware.Logging's use of the standard log package).
+// Verbosity is therefore not an Options field - slog's own level filtering
+// replaces the old manual "if opts.Verbose" gating; whoever configures the
+// default logger's minimum level (cmd/fetcher/main.go, from its -verbose
+// flag) controls whether the Debug-level lines below are shown.
 func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
+	start := time.Now()
+	slog.Info("fetch started", "dry_run", opts.DryRun)
+
 	feedList, err := repos.ListFeeds(conn)
 	if err != nil {
 		return Summary{}, fmt.Errorf("failed to list feeds: %w", err)
@@ -42,26 +53,24 @@ func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
 		}
 		summary.FeedsProcessed++
 
-		if opts.Verbose {
-			log.Printf("fetching feed %q (%s)", feed.Name, feed.URL)
-		}
+		slog.Debug("fetching feed", "feed_name", feed.Name, "feed_url", feed.URL)
 
 		parsed, err := feeds.ParseFeed(feed.URL)
 		if err != nil {
-			log.Printf("skipping feed %q: %v", feed.Name, err)
+			slog.Warn("skipping feed", "feed_name", feed.Name, "feed_url", feed.URL, "error", err)
 			summary.Errors++
 			continue
 		}
 
 		for _, post := range feeds.ExtractItems(parsed, feed.ID) {
 			if opts.DryRun {
-				log.Printf("[dry-run] would store post %q (%s)", post.Title, post.GUID)
+				slog.Debug("dry-run: would store post", "title", post.Title, "guid", post.GUID)
 				continue
 			}
 
 			id, err := repos.CreatePost(conn, &post)
 			if err != nil {
-				log.Printf("failed to store post %q: %v", post.Title, err)
+				slog.Warn("failed to store post", "title", post.Title, "error", err)
 				summary.Errors++
 				continue
 			}
@@ -72,6 +81,14 @@ func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
 			}
 		}
 	}
+
+	slog.Info("fetch completed",
+		"duration", time.Since(start),
+		"feeds_processed", summary.FeedsProcessed,
+		"new", summary.New,
+		"duplicates", summary.Duplicates,
+		"errors", summary.Errors,
+	)
 
 	return summary, nil
 }
