@@ -169,6 +169,43 @@ func TestFetchAll_SkipsUnreachableFeedButContinuesWithOthers(t *testing.T) {
 	}
 }
 
+func TestFetchAll_CountsFeedsProcessedExcludingDisabled(t *testing.T) {
+	// given: one working feed, one dead feed, and one disabled feed
+	workingServer := newSampleFeedServer()
+	defer workingServer.Close()
+	deadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := deadServer.URL
+	deadServer.Close()
+
+	conn := newTestDB(t)
+	if _, err := repos.CreateFeed(conn, "Working Feed", workingServer.URL); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if _, err := repos.CreateFeed(conn, "Dead Feed", deadURL); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	disabledID, err := repos.CreateFeed(conn, "Disabled Feed", "https://example.com/disabled/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if err := repos.DeleteFeed(conn, disabledID); err != nil {
+		t.Fatalf("DeleteFeed() returned error: %v", err)
+	}
+
+	// when: we fetch all feeds
+	summary, err := FetchAll(conn, Options{})
+
+	// then: FeedsProcessed counts the working and dead feeds (2), but not
+	// the disabled one - "processed" means "attempted," regardless of
+	// whether that attempt succeeded
+	if err != nil {
+		t.Fatalf("FetchAll() returned error: %v", err)
+	}
+	if summary.FeedsProcessed != 2 {
+		t.Errorf("expected 2 feeds processed, got %d", summary.FeedsProcessed)
+	}
+}
+
 func TestFetchAll_SkipsDisabledFeeds(t *testing.T) {
 	// given: a disabled feed
 	server := newSampleFeedServer()

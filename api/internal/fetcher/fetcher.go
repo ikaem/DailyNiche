@@ -17,9 +17,10 @@ type Options struct {
 
 // Summary reports what happened during a FetchAll run.
 type Summary struct {
-	New        int
-	Duplicates int
-	Errors     int
+	FeedsProcessed int
+	New            int
+	Duplicates     int
+	Errors         int
 }
 
 // FetchAll fetches every enabled feed in conn, storing new posts. A
@@ -39,6 +40,7 @@ func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
 		if feed.DisabledAt != nil {
 			continue
 		}
+		summary.FeedsProcessed++
 
 		if opts.Verbose {
 			log.Printf("fetching feed %q (%s)", feed.Name, feed.URL)
