@@ -6,14 +6,15 @@ import { ApiError } from '$lib/server/api';
 // paired like this. ApiError is spread through from the real module (via
 // vi.importActual) rather than faked, so `instanceof ApiError` inside the
 // action still works correctly against errors thrown in these tests.
-const { getFeeds, addFeed, deleteFeed } = vi.hoisted(() => ({
+const { getFeeds, addFeed, deleteFeed, fetchNow } = vi.hoisted(() => ({
 	getFeeds: vi.fn(),
 	addFeed: vi.fn(),
-	deleteFeed: vi.fn()
+	deleteFeed: vi.fn(),
+	fetchNow: vi.fn()
 }));
 vi.mock('$lib/server/api', async () => {
 	const actual = await vi.importActual<typeof import('$lib/server/api')>('$lib/server/api');
-	return { ...actual, getFeeds, addFeed, deleteFeed };
+	return { ...actual, getFeeds, addFeed, deleteFeed, fetchNow };
 });
 
 import { actions, load } from './+page.server';
@@ -22,6 +23,7 @@ beforeEach(() => {
 	getFeeds.mockReset();
 	addFeed.mockReset();
 	deleteFeed.mockReset();
+	fetchNow.mockReset();
 });
 
 function formDataRequest(fields: Record<string, string>): Request {
@@ -221,5 +223,63 @@ describe('dashboard actions.deleteFeed', () => {
 
 		// then: it falls back to a generic 500 message
 		expect(result).toEqual({ status: 500, data: { message: 'Failed to delete feed' } });
+	});
+});
+
+describe('dashboard actions.fetchNow', () => {
+	it('returns a fetchSummary message on success, distinct from the error message field', async () => {
+		// given: fetchNow resolves with a summary
+		fetchNow.mockResolvedValue({ newCount: 3, duplicates: 1, errors: 0 });
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: it returns a fetchSummary field, not message - so +page.svelte can tell a
+		// success confirmation apart from an error banner
+		expect(result).toEqual({ fetchSummary: 'Fetched 3 new posts' });
+	});
+
+	it('uses singular wording for exactly 1 new post', async () => {
+		// given: fetchNow resolves with exactly 1 new post
+		fetchNow.mockResolvedValue({ newCount: 1, duplicates: 0, errors: 0 });
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: the message uses "post", not "posts"
+		expect(result).toEqual({ fetchSummary: 'Fetched 1 new post' });
+	});
+
+	it('mentions failed feeds in the summary when errors occurred', async () => {
+		// given: fetchNow resolves with 2 feed errors
+		fetchNow.mockResolvedValue({ newCount: 0, duplicates: 0, errors: 2 });
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: the summary mentions the failed feeds
+		expect(result).toEqual({ fetchSummary: 'Fetched 0 new posts (2 feeds failed)' });
+	});
+
+	it('fails with the ApiError status and message when the Go API rejects the fetch', async () => {
+		// given: fetchNow rejects with an ApiError
+		fetchNow.mockRejectedValue(new ApiError('failed to fetch feeds', 500));
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: it returns the same status and message as the ApiError
+		expect(result).toEqual({ status: 500, data: { message: 'failed to fetch feeds' } });
+	});
+
+	it('fails with 500 when fetchNow throws a non-ApiError error', async () => {
+		// given: fetchNow rejects with an unexpected error
+		fetchNow.mockRejectedValue(new Error('connection reset'));
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: it falls back to a generic 500 message
+		expect(result).toEqual({ status: 500, data: { message: 'Failed to fetch feeds' } });
 	});
 });

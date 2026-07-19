@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
-import { addFeed, ApiError, deleteFeed, getFeeds } from '$lib/server/api';
+import { addFeed, ApiError, deleteFeed, fetchNow, getFeeds } from '$lib/server/api';
+import type { FetchSummary } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
 
 // Runs only on the server - same reasoning as the home page's load: no
@@ -75,5 +76,30 @@ export const actions: Actions = {
 			}
 			return fail(500, { message: 'Failed to delete feed' });
 		}
+	},
+
+	// Returns fetchSummary (not message) on success - a distinct field from
+	// the error path's `message`, so +page.svelte can render a success
+	// confirmation without it being mistaken for an error banner.
+	fetchNow: async () => {
+		try {
+			const summary = await fetchNow();
+			return { fetchSummary: summarizeFetch(summary) };
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to fetch feeds' });
+		}
 	}
 };
+
+function summarizeFetch(summary: FetchSummary): string {
+	const postsLabel = summary.newCount === 1 ? 'post' : 'posts';
+	let message = `Fetched ${summary.newCount} new ${postsLabel}`;
+	if (summary.errors > 0) {
+		const feedsLabel = summary.errors === 1 ? 'feed' : 'feeds';
+		message += ` (${summary.errors} ${feedsLabel} failed)`;
+	}
+	return message;
+}
