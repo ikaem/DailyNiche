@@ -546,6 +546,8 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 
 This phase is optional and should only be done after Phase 8 is complete. Focus on building the service first.
 
+**Exception, decided 2026-07-19:** the Pi's own OS/hardware bootstrap and general-purpose deployment substrate (Docker, reverse proxy, Cloudflare Tunnel) got pulled forward ahead of Phase 8, by deliberate request - the user wants the Raspberry Pi 5 (bare hardware, just unboxed, nothing installed yet) set up as a general home server usable for future projects too, not only DailyNiche. That plan lives in **[docs/PI_SETUP.md](./docs/PI_SETUP.md)** - it supersedes/expands Task 9.2's bullet list below with a properly staged, general (not DailyNiche-specific) setup. Task 9.1 (Dockerfile/compose) and the rest of Phase 9 remain deferred until Phase 8 is actually done - only the underlying Pi/Docker/tunnel substrate is jumping the queue.
+
 - [ ] **9.1: Create Dockerfile and docker-compose.yml** (1 hour)
   - [ ] Create `Dockerfile` for Go API service:
     - Multi-stage build (build in one image, run in smaller image)
