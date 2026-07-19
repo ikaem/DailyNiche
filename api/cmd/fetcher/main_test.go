@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -19,6 +20,10 @@ import (
 // disk is the only way multiple separate connections actually share data,
 // which is also exactly how the fetcher and API server share data for real.
 const testDBFileName = "fetcher-test.db"
+
+// testLogFileName is used with t.TempDir() the same way, so each test gets
+// its own isolated log file rather than appending to a real fetcher.log.
+const testLogFileName = "fetcher-test.log"
 
 const sampleRSS = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
@@ -115,14 +120,16 @@ func TestParseFlags_ReturnsErrorForUnknownFlag(t *testing.T) {
 // same scenarios again through this thicker CLI wrapper would just be
 // duplicate coverage of identical logic. This one test's job is narrower:
 // prove run() itself - flag parsing, opening the db, calling FetchAll,
-// logging the summary, returning an exit code - is wired together
-// correctly end-to-end.
+// logging to stdout and the log file, returning an exit code - is wired
+// together correctly end-to-end.
 func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	// given: a feed pointing at a local test server, seeded into a temp db
 	server := newSampleFeedServer()
 	defer server.Close()
 
-	dbPath := filepath.Join(t.TempDir(), testDBFileName)
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, testDBFileName)
+	logPath := filepath.Join(dir, testLogFileName)
 	seedConn, err := db.Open(dbPath)
 	if err != nil {
 		t.Fatalf("failed to open seed database: %v", err)
@@ -133,7 +140,7 @@ func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	seedConn.Close()
 
 	// when: we run the fetcher
-	code := run([]string{}, dbPath)
+	code := run([]string{}, dbPath, logPath)
 
 	// then: it exits 0 and stores both posts from the sample feed
 	if code != 0 {
@@ -141,5 +148,14 @@ func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	}
 	if count := countPosts(t, dbPath); count != 2 {
 		t.Fatalf("expected 2 posts stored, got %d", count)
+	}
+
+	// and: the run's log output was written to the log file, not just stdout
+	logContents, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("failed to read log file: %v", err)
+	}
+	if len(logContents) == 0 {
+		t.Error("expected the log file to contain output, got an empty file")
 	}
 }

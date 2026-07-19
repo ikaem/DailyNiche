@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"log/slog"
 	"os"
 
@@ -28,12 +29,14 @@ func parseFlags(args []string) (Config, error) {
 	return Config{Verbose: *verbose, DryRun: *dryRun}, nil
 }
 
-// configureLogging installs a slog default logger writing to out. This is
-// what -verbose now controls: Debug level surfaces FetchAll's per-feed/
-// per-post detail, Info level shows only the start/completion summary lines
-// - replacing the old approach of threading a Verbose flag through Options
-// and manually gating individual log calls with it.
-func configureLogging(out *os.File, verbose bool) {
+// configureLogging installs a slog default logger writing to out - typically
+// io.MultiWriter(os.Stdout, logFile), so a run's output lands in both places
+// at once rather than only wherever stdout happens to be redirected. Level
+// is what -verbose now controls: Debug surfaces FetchAll's per-feed/per-post
+// detail, Info shows only the start/completion summary lines - replacing the
+// old approach of threading a Verbose flag through Options and manually
+// gating individual log calls with it.
+func configureLogging(out io.Writer, verbose bool) {
 	level := slog.LevelInfo
 	if verbose {
 		level = slog.LevelDebug
@@ -47,14 +50,21 @@ func configureLogging(out *os.File, verbose bool) {
 // invoked from a test. The actual fetch loop lives in internal/fetcher, so
 // it can also be called from the API's on-demand fetch endpoint - this is
 // just the CLI wrapper around it (flags, db lifecycle, exit codes).
-func run(args []string, dbPath string) int {
+func run(args []string, dbPath string, logPath string) int {
 	cfg, err := parseFlags(args)
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
 		return 2
 	}
 
-	configureLogging(os.Stdout, cfg.Verbose)
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		slog.Error("failed to open log file", "error", err)
+		return 1
+	}
+	defer logFile.Close()
+
+	configureLogging(io.MultiWriter(os.Stdout, logFile), cfg.Verbose)
 
 	conn, err := db.Open(dbPath)
 	if err != nil {
@@ -82,5 +92,9 @@ func main() {
 	if dbPath == "" {
 		dbPath = "dailyniche.db"
 	}
-	os.Exit(run(os.Args[1:], dbPath))
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		logPath = "fetcher.log"
+	}
+	os.Exit(run(os.Args[1:], dbPath, logPath))
 }
