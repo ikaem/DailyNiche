@@ -6,16 +6,45 @@
 
 	let activeFeeds = $derived(data.feeds.filter((feed) => feed.disabledAt === null));
 	let disabledFeeds = $derived(data.feeds.filter((feed) => feed.disabledAt !== null));
+
+	// Tracks the in-flight state of the fetch-now form specifically (not a
+	// generic "any form is submitting" flag) - a custom use:enhance callback
+	// is needed here (the other forms on this page use enhance's bare
+	// default) because we want the button's own label/disabled state to
+	// reflect this one action's progress, which the default behavior alone
+	// doesn't expose.
+	let fetching = $state(false);
 </script>
 
 <main>
 	<h1>Dashboard</h1>
+
+	<section class="fetch-now">
+		<form
+			method="POST"
+			action="?/fetchNow"
+			use:enhance={() => {
+				fetching = true;
+				return async ({ update }) => {
+					fetching = false;
+					await update();
+				};
+			}}
+		>
+			<button type="submit" class="secondary" disabled={fetching}>
+				{fetching ? 'Fetching…' : 'Fetch now'}
+			</button>
+		</form>
+	</section>
 
 	{#if data.error}
 		<p class="status status-error">{data.error}</p>
 	{:else}
 		{#if form?.message}
 			<p class="status status-error">{form.message}</p>
+		{/if}
+		{#if form?.fetchSummary}
+			<p class="status status-success">{form.fetchSummary}</p>
 		{/if}
 
 		<section>
@@ -89,6 +118,28 @@
 		margin: 0 0 1.75rem;
 	}
 
+	.fetch-now {
+		margin-bottom: 1.5rem;
+	}
+	button.secondary {
+		background: none;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+		padding: 0.5rem 1.1rem;
+		font-family: inherit;
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: var(--ink);
+		cursor: pointer;
+	}
+	button.secondary:hover:not(:disabled) {
+		background: var(--card);
+	}
+	button.secondary:disabled {
+		cursor: default;
+		opacity: 0.6;
+	}
+
 	.status {
 		text-align: center;
 		padding: 1rem;
@@ -96,6 +147,9 @@
 	}
 	.status-error {
 		color: var(--accent);
+	}
+	.status-success {
+		color: var(--ink-soft);
 	}
 
 	section {
