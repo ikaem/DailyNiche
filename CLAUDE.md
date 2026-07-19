@@ -390,6 +390,7 @@ Once the commit is made, I start the next step with its context.
   - Both render with **no wrapping element** - they're fragments rendered directly into the parent's `.grid-12` container (owned by `+page.svelte`), since `PostHero`/`PostMedium`'s `grid-column: span N` requires them to be direct grid children
   - `DateNav.svelte` - the prev/next/date-jump pill bar, extracted from `+page.svelte` as its own component
   - All in `web/src/lib/components/` (not `web/src/components/` as originally sketched, to match SvelteKit's `$lib` convention)
+  - TODO (not urgent): post title/description text isn't cleanly selectable for copy/paste in `PostHero`/`PostMedium`/`PostListItem` - likely a side effect of wrapping the entire card in one `<a>` (a mouse drag over the text can get interpreted as a link-drag gesture in some browsers rather than a text selection). Revisit the markup/CSS (e.g. `user-select`, or restructuring what's inside the anchor) to make title/description selectable without breaking the "whole card is clickable" design.
 
 - [x] **7.3: Bottom section** - superseded by `PostListItem.svelte`/`BelowTheFold.svelte` above (no separate `BottomNews.svelte` - one list-item component serves this role)
 
