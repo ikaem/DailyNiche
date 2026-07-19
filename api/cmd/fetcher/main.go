@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/karlo/dailyniche/internal/db"
 	"github.com/karlo/dailyniche/internal/fetcher"
@@ -44,13 +48,25 @@ func configureLogging(out io.Writer, verbose bool) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level})))
 }
 
+// interruptedExitCode is returned when a run stops early due to a shutdown
+// signal rather than a real failure - 130 matches the conventional Unix
+// exit code for a SIGINT-terminated process (128+2); reused here for
+// SIGTERM too rather than picking a second code, since both signals mean
+// the same thing to this CLI: stop cleanly, don't treat it as an error.
+//
+// Only observable when running the compiled binary directly. `go run`
+// wraps the built binary in its own process and does not forward this exit
+// code faithfully - confirmed live, a SIGTERM sent to a `go run` process
+// surfaced as exit code 143 (the default, unhandled SIGTERM code) instead.
+const interruptedExitCode = 130
+
 // run executes one fetcher invocation and returns a process exit code.
 // Kept separate from main() so it's callable from tests: main() calls
 // os.Exit directly, which would kill the test binary if main() itself were
 // invoked from a test. The actual fetch loop lives in internal/fetcher, so
 // it can also be called from the API's on-demand fetch endpoint - this is
 // just the CLI wrapper around it (flags, db lifecycle, exit codes).
-func run(args []string, dbPath string, logPath string) int {
+func run(ctx context.Context, args []string, dbPath string, logPath string) int {
 	cfg, err := parseFlags(args)
 	if err != nil {
 		slog.Error("failed to parse flags", "error", err)
@@ -75,8 +91,12 @@ func run(args []string, dbPath string, logPath string) int {
 
 	slog.Debug("database ready", "db_path", dbPath)
 
-	summary, err := fetcher.FetchAll(conn, fetcher.Options{DryRun: cfg.DryRun})
+	summary, err := fetcher.FetchAll(ctx, conn, fetcher.Options{DryRun: cfg.DryRun})
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			slog.Warn("fetcher stopped early due to shutdown signal")
+			return interruptedExitCode
+		}
 		slog.Error("failed to fetch feeds", "error", err)
 		return 1
 	}
@@ -88,6 +108,9 @@ func run(args []string, dbPath string, logPath string) int {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "dailyniche.db"
@@ -96,5 +119,8 @@ func main() {
 	if logPath == "" {
 		logPath = "fetcher.log"
 	}
-	os.Exit(run(os.Args[1:], dbPath, logPath))
+
+	code := run(ctx, os.Args[1:], dbPath, logPath)
+	stop()
+	os.Exit(code)
 }

@@ -1,6 +1,7 @@
 package fetcher
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -37,7 +38,14 @@ type Summary struct {
 // replaces the old manual "if opts.Verbose" gating; whoever configures the
 // default logger's minimum level (cmd/fetcher/main.go, from its -verbose
 // flag) controls whether the Debug-level lines below are shown.
-func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
+//
+// ctx is checked once per feed, between iterations - not threaded into the
+// network call itself (gofeed's ParseURL doesn't accept a context anyway,
+// and a full run completes in seconds for a handful of feeds, so there's
+// nothing to gain from interrupting mid-request). Cancelling ctx (e.g. via
+// cmd/fetcher's SIGTERM/SIGINT handling) stops the run cleanly before the
+// next feed starts, rather than killing it mid-write.
+func FetchAll(ctx context.Context, conn *sql.DB, opts Options) (Summary, error) {
 	start := time.Now()
 	slog.Info("fetch started", "dry_run", opts.DryRun)
 
@@ -48,6 +56,19 @@ func FetchAll(conn *sql.DB, opts Options) (Summary, error) {
 
 	var summary Summary
 	for _, feed := range feedList {
+		select {
+		case <-ctx.Done():
+			slog.Warn("fetch interrupted, stopping before next feed",
+				"duration", time.Since(start),
+				"feeds_processed", summary.FeedsProcessed,
+				"new", summary.New,
+				"duplicates", summary.Duplicates,
+				"errors", summary.Errors,
+			)
+			return summary, ctx.Err()
+		default:
+		}
+
 		if feed.DisabledAt != nil {
 			continue
 		}

@@ -245,6 +245,7 @@ Once the commit is made, I start the next step with its context.
     - Some feeds' `<description>` is full raw post HTML (WordPress lazy-load scaffolding, `<noscript>` fallbacks, "first appeared on" footers) rather than a clean excerpt - `contentSummary` now strips tags via a real HTML tokenizer (`golang.org/x/net/html`, promoted from an existing transitive dependency to direct - not a new one), decodes entities, and truncates to ~300 runes at a word boundary (rune-safe, not byte-slicing, so multi-byte UTF-8 text like Croatian diacritics never gets corrupted mid-character).
     - The tokenizer's own handling of "raw text" elements (`script`, `style`, `noscript`, etc. - content treated as one opaque unparsed blob, matching HTML5 spec behavior) meant a `<noscript>` lazy-load fallback's raw `<img>` markup was leaking into summaries verbatim; `stripHTML` now explicitly skips text found inside any of these elements.
     - Separately, `imageURL` was trusting whatever image gofeed extracted even when it was a `data:` URI placeholder (some lazy-load plugins put a fake inline SVG in `<img src>`, with the real photo only reachable via the `<noscript>` fallback) - now rejects `data:` URIs and recovers the real photo URL from that fallback instead.
+  - TODO (very low priority, added 2026-07-19): `parser`'s `gofeed.Parser` has no request timeout set on its underlying HTTP client - a feed server that accepts a connection and then never responds would hang `ParseFeed` indefinitely. Discovered while reasoning through Task 5.2's SIGTERM handling: that handling is cooperative (checked between feeds, not during an in-flight fetch), so a truly stuck feed wouldn't be rescued by it either - the run would just hang until this timeout existed. Fix would be `parser.Client = &http.Client{Timeout: ...}` in `newParser()`, or making `ParseFeed` accept and honor a `context.Context`. Not built - no real feed has ever actually hung in practice so far, this is a theoretical gap, not an observed bug.
 
 - [x] **2.3: Add post images to the pipeline**
   - `image_url TEXT` added to `posts` via `migrations/0002_add_image_url.sql` (the migration system's first real second migration, per Task 1.3).
@@ -342,23 +343,29 @@ Once the commit is made, I start the next step with its context.
 
 **Not optional - reclassified as vital (2026-07-18).** The dependency graph below originally marked this "OPTIONAL FOR MVP (DEFER)," reasoning that manual `make fetcher` runs were good enough short-term. Reconsidered: without a real, recurring way to pull in new posts, there is no ongoing source of real data at all - the daily-magazine premise of this whole app depends on posts actually accumulating day over day, not on manually re-running a command. See the dependency graph note below, kept for history, but Phase 5 itself is not deferred.
 
-- [ ] **5.1: Optimize fetcher for cron** (1 hour)
-  - [ ] Ensure cmd/fetcher runs cleanly in one shot
-  - [ ] Document cron setup: `0 3 * * * /path/to/fetcher`
-  - [ ] Verify: posts get today's date
+- [x] **5.1: Optimize fetcher for cron** (1 hour)
+  - [x] Ensure cmd/fetcher runs cleanly in one shot
+  - [x] Document cron setup: `0 3 * * * /path/to/fetcher`
+  - [x] Verify: posts get today's date
   - PR: "docs: prepare fetcher for cron scheduling"
+  - Note: cron setup documented in README.md's "Automating the Fetcher (Cron)" section - a system crontab entry invoking either `go run ./cmd/fetcher` or the built `api/bin/fetcher` binary. "Posts get today's date" already held true via `publishedAt`'s UTC normalization (see Task 2.1) - no change needed here, just verified.
 
-- [ ] **5.2: Add error handling and observability** (1 hour)
-  - [ ] Add structured logging to fetcher
-  - [ ] Log: start/end time, feeds processed, posts added, errors
-  - [ ] Write logs to file and stdout
-  - [ ] Graceful shutdown on SIGTERM
-  - [ ] Update README with cron setup instructions
+- [x] **5.2: Add error handling and observability** (1 hour)
+  - [x] Add structured logging to fetcher
+  - [x] Log: start/end time, feeds processed, posts added, errors
+  - [x] Write logs to file and stdout
+  - [x] Graceful shutdown on SIGTERM
+  - [x] Update README with cron setup instructions
   - PR: "feat: add logging and error handling to fetcher"
+  - `internal/fetcher.FetchAll` now takes a `context.Context` as its first argument and logs via the global `log/slog` default logger instead of `log.Printf`: `slog.Debug` for per-feed/per-post chatter and dry-run notices, `slog.Warn` for per-feed/per-post failures and early-stop notices, `slog.Info` for the run's start (`dry_run`) and completion (`duration`, `feeds_processed`, `new`, `duplicates`, `errors`). `Options.Verbose` was removed entirely - slog's own level filtering replaces the old manual `if opts.Verbose` gating; verbosity is now a property of whichever logger is installed as the default, not a parameter passed into the fetch loop.
+  - `cmd/fetcher/main.go`'s new `configureLogging(out io.Writer, verbose bool)` installs a `slog.NewTextHandler` at `Debug` level under `-verbose`, `Info` otherwise, writing to `io.MultiWriter(os.Stdout, logFile)` - `logFile` opened from a new `LOG_PATH` env var (`os.Getenv`-with-fallback to `fetcher.log`, matching the existing `DB_PATH` convention; no `.env`-loading infrastructure, per Task 1.4's still-deferred status).
+  - Graceful shutdown: `main()` wraps `context.Background()` in `signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)` and threads that context through to `FetchAll`, which checks `ctx.Done()` once per feed, between iterations - **cooperative cancellation, not full context threading through every network call** (gofeed's `ParseURL` doesn't accept a context anyway, and a full run completes in seconds for a handful of feeds, so there's nothing to gain from interrupting mid-request). A signal lets the current feed's in-flight fetch finish, then stops before the next one starts. `run()` maps a `context.Canceled` error to exit code 130 (matching the conventional Unix SIGINT exit code, reused for SIGTERM too since both mean the same thing here: stop cleanly, not a failure). The on-demand fetch handler (`POST /api/fetch`, Task 5.3) passes `r.Context()` into `FetchAll` too, for free - if the HTTP client disconnects mid-fetch, the same cooperative stop applies.
+  - Verified live: ran the fetcher via its compiled binary (not `go run`, whose wrapper process doesn't forward signals the same way) against a seeded db, sent `SIGTERM` mid-run, and confirmed it finished the in-flight feed, logged "fetch interrupted, stopping before next feed" and "fetcher stopped early due to shutdown signal", and exited 130 - identically in both stdout and the `LOG_PATH` file. Also verified `-verbose`'s level-filtering live (Debug lines appear only with the flag) and that the log file accumulates across repeated runs (append, not overwrite) rather than being tested only via unit assertions.
+  - README.md's cron section gained a new "Fetcher Logging" subsection documenting `LOG_PATH`, `-verbose`, and the SIGTERM/SIGINT/exit-130 behavior.
 
 - [x] **5.3: On-demand fetch from the dashboard** (added 2026-07-18, built same day)
   - **Motivation:** cron only runs once a day - a user adding a new feed, or just wanting fresh posts right now, otherwise has to wait until tomorrow's scheduled run. A dashboard button closes that gap.
-  - `internal/fetcher.FetchAll(conn, Options) (Summary, error)` - the fetch loop extracted from `cmd/fetcher/main.go`'s old `run()`, callable from both the CLI and the API handler, not shelled out to as a separate process.
+  - `internal/fetcher.FetchAll(conn, Options) (Summary, error)` - the fetch loop extracted from `cmd/fetcher/main.go`'s old `run()`, callable from both the CLI and the API handler, not shelled out to as a separate process. (Signature later gained a leading `context.Context` parameter in Task 5.2, for SIGTERM/SIGINT cancellation.)
   - `cmd/fetcher/main.go`'s `run()` is now a thin wrapper: parse flags, open the db, call `fetcher.FetchAll`, log the summary, return an exit code.
   - `POST /api/fetch` on the Go API calls `fetcher.FetchAll` and returns `{"new": N, "duplicates": N, "errors": N}`.
   - Dashboard's "Fetch now" button wired via a form action (`actions.fetchNow`), same server-to-server pattern as `addFeed`/`deleteFeed`. Uses a custom `use:enhance` callback (the first non-default one in this app) so the button shows "Fetching…"/disabled while the request is in flight, reverting once `update()` resolves.
@@ -468,7 +475,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Phases 0-4 (backend, including 4.1's logging/error middleware), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system), Task 2.3 (post images), and Task 5.3 (on-demand fetch) - the full vertical slice works end-to-end with real images rendering, real API error messages surfacing in the UI, and an on-demand fetch button, all verified live in a browser against real feeds. Remaining open items, in no particular required order: Tasks 5.1/5.2 (fetcher cron scheduling/observability polish - still pending, only 5.3 is done), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4/5.3 TODOs (feed preview, enable-disabled-feed, per-feed fetch failure detail, feed import/export).
+**Next task:** Phases 0-5 (backend, including 4.1's logging/error middleware and 5.1/5.2's cron/observability work) plus 6 and 7 (frontend) are all done, plus Task 1.3 (DB migration system), Task 2.3 (post images), and Task 5.3 (on-demand fetch) - the full vertical slice works end-to-end with real images rendering, real API error messages surfacing in the UI, an on-demand fetch button, and a cron-ready fetcher with structured slog logging (stdout + `LOG_PATH` file) and graceful SIGTERM/SIGINT shutdown, all verified live against real feeds. Remaining open items, in no particular required order: Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4/5.3 TODOs (feed preview, enable-disabled-feed, per-feed fetch failure detail, feed import/export).
 
 ---
 
@@ -643,3 +650,5 @@ npm run dev               # Start dev server (port 5173)
 - [x] 2.3: Add post images to the pipeline - image_url column/field/parsing/repo/API plumbing, server-side inline-SVG placeholder for posts with no image, verified live end-to-end
 - [x] 4.1: Set up HTTP server and middleware - explicit http.NewServeMux(), logging middleware wrapping the whole mux, JSON error responses (writeError), frontend now surfaces the real Go error message; CORS dropped entirely (browser never calls Go directly)
 - [x] 5.3: On-demand fetch from the dashboard - internal/fetcher.FetchAll extracted from cmd/fetcher, POST /api/fetch, dashboard "Fetch now" button with a custom use:enhance loading state, verified live against real feeds (and caught two real parser bugs along the way)
+- [x] 5.1: Optimize fetcher for cron - README cron docs (system crontab, go run or built binary), verified posts get today's date via existing UTC normalization
+- [x] 5.2: Add error handling and observability - FetchAll migrated to log/slog (Debug/Info/Warn levels replacing manual Verbose gating), dual stdout+LOG_PATH file logging via io.MultiWriter, cooperative SIGTERM/SIGINT shutdown (context checked between feed iterations, exit code 130), all verified live including a real SIGTERM sent mid-run

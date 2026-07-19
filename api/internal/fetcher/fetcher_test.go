@@ -1,7 +1,9 @@
 package fetcher
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -71,7 +73,7 @@ func TestFetchAll_FetchesAndStoresNewPosts(t *testing.T) {
 	}
 
 	// when: we fetch all feeds
-	summary, err := FetchAll(conn, Options{})
+	summary, err := FetchAll(context.Background(), conn, Options{})
 
 	// then: no error, both posts are stored, and the summary reports them as new
 	if err != nil {
@@ -95,10 +97,10 @@ func TestFetchAll_CanBeCalledRepeatedlyWithoutDuplicating(t *testing.T) {
 	}
 
 	// when: we fetch the same feed twice
-	if _, err := FetchAll(conn, Options{}); err != nil {
+	if _, err := FetchAll(context.Background(), conn, Options{}); err != nil {
 		t.Fatalf("first FetchAll() returned error: %v", err)
 	}
-	summary, err := FetchAll(conn, Options{})
+	summary, err := FetchAll(context.Background(), conn, Options{})
 	if err != nil {
 		t.Fatalf("second FetchAll() returned error: %v", err)
 	}
@@ -123,7 +125,7 @@ func TestFetchAll_DryRunDoesNotStorePosts(t *testing.T) {
 	}
 
 	// when: we fetch with DryRun set
-	summary, err := FetchAll(conn, Options{DryRun: true})
+	summary, err := FetchAll(context.Background(), conn, Options{DryRun: true})
 
 	// then: no error, but nothing is stored
 	if err != nil {
@@ -154,7 +156,7 @@ func TestFetchAll_SkipsUnreachableFeedButContinuesWithOthers(t *testing.T) {
 	}
 
 	// when: we fetch all feeds
-	summary, err := FetchAll(conn, Options{})
+	summary, err := FetchAll(context.Background(), conn, Options{})
 
 	// then: no top-level error, the dead feed is counted as an error, and
 	// the working feed's posts are still stored
@@ -193,7 +195,7 @@ func TestFetchAll_CountsFeedsProcessedExcludingDisabled(t *testing.T) {
 	}
 
 	// when: we fetch all feeds
-	summary, err := FetchAll(conn, Options{})
+	summary, err := FetchAll(context.Background(), conn, Options{})
 
 	// then: FeedsProcessed counts the working and dead feeds (2), but not
 	// the disabled one - "processed" means "attempted," regardless of
@@ -203,6 +205,39 @@ func TestFetchAll_CountsFeedsProcessedExcludingDisabled(t *testing.T) {
 	}
 	if summary.FeedsProcessed != 2 {
 		t.Errorf("expected 2 feeds processed, got %d", summary.FeedsProcessed)
+	}
+}
+
+func TestFetchAll_StopsWhenContextIsCancelled(t *testing.T) {
+	// given: two feeds (never actually reached - the point of this test is
+	// that FetchAll stops before contacting either one), but a context
+	// that's already cancelled
+	server := newSampleFeedServer()
+	defer server.Close()
+	conn := newTestDB(t)
+	if _, err := repos.CreateFeed(conn, "Feed A", server.URL); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if _, err := repos.CreateFeed(conn, "Feed B", "https://example.com/feed-b.xml"); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// when: we fetch with the cancelled context
+	summary, err := FetchAll(ctx, conn, Options{})
+
+	// then: FetchAll stops before processing any feed and reports the
+	// cancellation via its error, rather than silently ignoring ctx and
+	// fetching everything anyway
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if summary.FeedsProcessed != 0 {
+		t.Errorf("expected 0 feeds processed, got %d", summary.FeedsProcessed)
+	}
+	if count := countPosts(t, conn); count != 0 {
+		t.Fatalf("expected 0 posts stored, got %d", count)
 	}
 }
 
@@ -220,7 +255,7 @@ func TestFetchAll_SkipsDisabledFeeds(t *testing.T) {
 	}
 
 	// when: we fetch all feeds
-	summary, err := FetchAll(conn, Options{})
+	summary, err := FetchAll(context.Background(), conn, Options{})
 
 	// then: nothing is fetched from the disabled feed
 	if err != nil {

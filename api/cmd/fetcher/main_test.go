@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -140,7 +141,7 @@ func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	seedConn.Close()
 
 	// when: we run the fetcher
-	code := run([]string{}, dbPath, logPath)
+	code := run(context.Background(), []string{}, dbPath, logPath)
 
 	// then: it exits 0 and stores both posts from the sample feed
 	if code != 0 {
@@ -157,5 +158,36 @@ func TestRun_FetchesAndStoresPostsEndToEnd(t *testing.T) {
 	}
 	if len(logContents) == 0 {
 		t.Error("expected the log file to contain output, got an empty file")
+	}
+}
+
+// TestRun_ReturnsInterruptedExitCodeWhenContextIsCancelled covers the branch
+// a real SIGTERM can't safely exercise in a test: mapping a context.Canceled
+// error from FetchAll to interruptedExitCode rather than the generic
+// failure exit code 1. A pre-cancelled context deterministically triggers
+// that same error without needing to send an actual OS signal.
+func TestRun_ReturnsInterruptedExitCodeWhenContextIsCancelled(t *testing.T) {
+	// given: a feed seeded into a temp db, but a context that's already cancelled
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, testDBFileName)
+	logPath := filepath.Join(dir, testLogFileName)
+	seedConn, err := db.Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open seed database: %v", err)
+	}
+	if _, err := repos.CreateFeed(seedConn, "Test Feed", "https://example.com/feed.xml"); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	seedConn.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// when: we run the fetcher with the cancelled context
+	code := run(ctx, []string{}, dbPath, logPath)
+
+	// then: it reports the interrupted exit code, not the generic failure one
+	if code != interruptedExitCode {
+		t.Fatalf("expected exit code %d, got %d", interruptedExitCode, code)
 	}
 }

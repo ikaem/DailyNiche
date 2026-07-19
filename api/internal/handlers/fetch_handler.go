@@ -23,7 +23,7 @@ type FetchSummaryResponse struct {
 // revisit only if real usage shows otherwise.
 func Fetch(conn *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		summary, err := fetcher.FetchAll(conn, fetcher.Options{})
+		summary, err := fetcher.FetchAll(r.Context(), conn, fetcher.Options{})
 		if err != nil {
 			writeError(w, "failed to fetch feeds", http.StatusInternalServerError)
 			return

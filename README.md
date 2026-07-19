@@ -75,6 +75,18 @@ Or, against a built binary (see `make build`, which outputs to `api/bin/`):
 
 You can also trigger a fetch on demand from the dashboard's "Fetch now" button, without waiting for the next scheduled run.
 
+### Fetcher Logging
+
+Every run logs structured (`key=value`) output to both stdout and a log file, so a cron-triggered run's history is still available later even though nothing is watching its stdout live. The log file's path comes from the `LOG_PATH` env var, defaulting to `fetcher.log` in the working directory the fetcher was started from:
+
+```
+LOG_PATH=/path/to/DailyNiche/api/fetcher.log
+```
+
+Pass `-verbose` for `Debug`-level detail (per-feed fetch attempts, dry-run notices); without it, only the run's start/completion summary and any warnings/errors are logged.
+
+If the fetcher receives `SIGTERM` or `SIGINT` (e.g. a system shutdown, or a manually cancelled run), it stops cleanly before starting its next feed rather than being killed mid-fetch, logs a warning noting the early stop, and exits with code 130.
+
 ## Project Structure
 
 See [CLAUDE.md](./CLAUDE.md) for the full implementation guide and task breakdown.
