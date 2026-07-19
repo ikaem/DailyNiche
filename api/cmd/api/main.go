@@ -41,6 +41,7 @@ func main() {
 	mux.HandleFunc("GET /api/feeds", handlers.Feeds(conn))
 	mux.HandleFunc("POST /api/feeds", handlers.CreateFeed(conn))
 	mux.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
+	mux.HandleFunc("POST /api/fetch", handlers.Fetch(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, middleware.Logging(mux)); err != nil {
