@@ -238,8 +238,13 @@ Once the commit is made, I start the next step with its context.
   - [x] Handle missing fields gracefully
   - [x] Write unit tests with sample feeds
   - PR: "feat: implement feed parser with gofeed"
-  - TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call. Fine at our scale. If we ever need a custom HTTP client/timeout, or want to reuse connections across many feed fetches (e.g. fetching dozens of feeds in one fetcher run), build one `Parser` once and reuse it instead.
-  - TODO: `gofeed`'s default `User-Agent` is the literal string `"Gofeed/1.0"` - some sites (confirmed live: a WordPress site running a security plugin) return `403 Forbidden` specifically for this signature, while a browser/curl/even bare Go UA all pass. Fix: set `parser.UserAgent` to something more neutral or honestly self-identifying (e.g. `"DailyNiche/1.0 (personal RSS reader)"`) before calling `ParseURL` - `gofeed.Parser` already exposes this field, no new dependency needed. Combine with the `Parser`-reuse TODO above when addressed, since both need the same "build one configured `Parser` instead of a fresh default one" change.
+  - RESOLVED (2026-07-18): both the `Parser`-reuse TODO and the `User-Agent` TODO (below, kept for history) were fixed together, exactly as anticipated - a single package-level `gofeed.Parser`, configured once with `UserAgent: "DailyNiche/1.0 (personal RSS reader)"`. Confirmed live against multiple real feeds (a WordPress site, and `rojcnet.pula.org/rss`) that the default `"Gofeed/1.0"` UA gets a `403` where the real one passes.
+  - ~~TODO (minor, not urgent): `ParseFeed` currently calls `gofeed.NewParser()` fresh on every call...~~
+  - ~~TODO: `gofeed`'s default `User-Agent` is the literal string `"Gofeed/1.0"`...~~
+  - RESOLVED (2026-07-19): two further bugs found live via real feeds (`rojcnet.pula.org`), both in `contentSummary`/`imageURL`:
+    - Some feeds' `<description>` is full raw post HTML (WordPress lazy-load scaffolding, `<noscript>` fallbacks, "first appeared on" footers) rather than a clean excerpt - `contentSummary` now strips tags via a real HTML tokenizer (`golang.org/x/net/html`, promoted from an existing transitive dependency to direct - not a new one), decodes entities, and truncates to ~300 runes at a word boundary (rune-safe, not byte-slicing, so multi-byte UTF-8 text like Croatian diacritics never gets corrupted mid-character).
+    - The tokenizer's own handling of "raw text" elements (`script`, `style`, `noscript`, etc. - content treated as one opaque unparsed blob, matching HTML5 spec behavior) meant a `<noscript>` lazy-load fallback's raw `<img>` markup was leaking into summaries verbatim; `stripHTML` now explicitly skips text found inside any of these elements.
+    - Separately, `imageURL` was trusting whatever image gofeed extracted even when it was a `data:` URI placeholder (some lazy-load plugins put a fake inline SVG in `<img src>`, with the real photo only reachable via the `<noscript>` fallback) - now rejects `data:` URIs and recovers the real photo URL from that fallback instead.
 
 - [x] **2.3: Add post images to the pipeline**
   - `image_url TEXT` added to `posts` via `migrations/0002_add_image_url.sql` (the migration system's first real second migration, per Task 1.3).
@@ -351,14 +356,16 @@ Once the commit is made, I start the next step with its context.
   - [ ] Update README with cron setup instructions
   - PR: "feat: add logging and error handling to fetcher"
 
-- [ ] **5.3: On-demand fetch from the dashboard** (added 2026-07-18, building now)
+- [x] **5.3: On-demand fetch from the dashboard** (added 2026-07-18, built same day)
   - **Motivation:** cron only runs once a day - a user adding a new feed, or just wanting fresh posts right now, otherwise has to wait until tomorrow's scheduled run. A dashboard button closes that gap.
-  - [ ] Extract `cmd/fetcher/main.go`'s `run()` loop (fetch each enabled feed, extract items, store posts, count new/duplicate/error) into a reusable `internal/fetcher` package (e.g. `FetchAll(conn, Options) (Summary, error)`), callable from both the CLI and a new HTTP handler - not shelling out to a separate binary, the same logic reused from two entry points.
-  - [ ] `cmd/fetcher/main.go`'s `run()` becomes a thin wrapper: parse flags, open the db, call `fetcher.FetchAll`, log the summary, return an exit code.
-  - [ ] New `POST /api/fetch` endpoint on the Go API calling `fetcher.FetchAll` and returning the summary as JSON.
-  - [ ] Dashboard gets a "Fetch now" button wired via a form action (same server-to-server pattern as `addFeed`/`deleteFeed`), calling the new endpoint.
-  - [ ] **Progress feedback: decided (2026-07-18) to start with the simple synchronous approach** - the action blocks until `FetchAll` fully completes, then returns the summary; the button shows a loading/disabled state meanwhile. Explicitly NOT building async job-tracking/polling/streaming progress for this - a personal project with a handful of feeds likely fetches in well under a few seconds, so a blocking request is probably genuinely sufficient, not a compromise. Revisit only if real usage shows fetches taking long enough to actually need it.
+  - `internal/fetcher.FetchAll(conn, Options) (Summary, error)` - the fetch loop extracted from `cmd/fetcher/main.go`'s old `run()`, callable from both the CLI and the API handler, not shelled out to as a separate process.
+  - `cmd/fetcher/main.go`'s `run()` is now a thin wrapper: parse flags, open the db, call `fetcher.FetchAll`, log the summary, return an exit code.
+  - `POST /api/fetch` on the Go API calls `fetcher.FetchAll` and returns `{"new": N, "duplicates": N, "errors": N}`.
+  - Dashboard's "Fetch now" button wired via a form action (`actions.fetchNow`), same server-to-server pattern as `addFeed`/`deleteFeed`. Uses a custom `use:enhance` callback (the first non-default one in this app) so the button shows "Fetching…"/disabled while the request is in flight, reverting once `update()` resolves.
+  - **Progress feedback: simple synchronous approach, as decided** - the action blocks until `FetchAll` fully completes. Confirmed sufficient in practice - verified live end-to-end (button → loading state → result message), full fetches complete in well under a few seconds for a handful of feeds.
+  - Verified live against real feeds, including catching two genuine parser bugs this surfaced (raw HTML leaking into summaries, and a lazy-load plugin's fake placeholder image) - see Task 2.1's notes.
   - PR: "feat: add on-demand fetch endpoint and dashboard button"
+  - TODO (not urgent, bigger rework - deferred 2026-07-19): the summary only reports counts, not which feed(s) failed or why - discovered live when a real feed (sputnikmusic.com) failed due to the site's own expired TLS certificate, and the dashboard only showed "1 feed failed" with no way to tell which one or why without checking server logs. Fix: extend `fetcher.Summary` with `FailedFeeds []FeedFailure` (`{FeedName, Error string}`), populated where the loop currently just does `summary.Errors++`; thread the same field through `FetchSummaryResponse` (Go API) -> frontend's `FetchSummaryWire`/`FetchSummary` -> `summarizeFetch`'s message. Keep the real underlying error message (e.g. "tls: certificate has expired") rather than a sanitized generic one - this is a single-user tool, and that detail is exactly what let the user immediately identify it as the remote site's problem, not ours.
 
 ---
 
@@ -400,6 +407,7 @@ Once the commit is made, I start the next step with its context.
   - Verified live end-to-end against the real Go API: add, delete (soft-delete moves a feed into "Disabled Feeds"), and validation-failure (form NOT cleared, per `enhance`'s failure-path behavior) all confirmed via screenshots.
   - TODO (not urgent): add a "Preview" button alongside "Add Feed", backed by a new `GET /api/feeds/preview?url=...` endpoint - reuses `feeds.ParseFeed`/`feeds.ExtractItems` directly, writes nothing to the DB, just shows the feed's title + a few current posts before the user commits to adding it. Motivated by discovering some feeds can silently fail (e.g. a site blocking `gofeed`'s default User-Agent with a 403) - preview surfaces that immediately instead of the user only finding out after adding a dead feed and waiting for the next fetch.
   - TODO (not urgent): the dashboard shows disabled feeds in their own section with an "Enable" button, rendered but inert (`<button type="button">`, no action wired) - this feature doesn't exist on the backend yet. Needs a `repos.EnableFeed` (clears `disabled_at`) and a corresponding form action, plus wiring the button in `dashboard/+page.svelte`.
+  - TODO (not urgent, details deferred - added 2026-07-19): export the current feed list and import a feed list from a file. Exact format/scope (OPML, since that's the de facto standard for feed-list interchange? a simpler JSON/CSV? does import merge with or replace existing feeds? does it reuse the same validation as `actions.addFeed`?) not yet decided - flagged now just to capture the idea, spec out properly when actually picked up.
 
 ---
 
@@ -460,7 +468,7 @@ Complete Phase 8 -> 9.1 -> 9.2 -> 9.3 -> 9.4 (optional)
 (Only tackle this after service is working end-to-end locally)
 ```
 
-**Next task:** Phases 0-4 (backend, including 4.1's logging/error middleware), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system) and Task 2.3 (post images) - the full vertical slice works end-to-end with real images rendering and real API error messages surfacing in the UI, verified live in a browser. Remaining open items, in no particular required order: Phase 5 (cron/observability polish for the fetcher), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4 TODOs (feed preview, enable-disabled-feed).
+**Next task:** Phases 0-4 (backend, including 4.1's logging/error middleware), 6, and 7 (frontend) are all done, plus Task 1.3 (DB migration system), Task 2.3 (post images), and Task 5.3 (on-demand fetch) - the full vertical slice works end-to-end with real images rendering, real API error messages surfacing in the UI, and an on-demand fetch button, all verified live in a browser against real feeds. Remaining open items, in no particular required order: Tasks 5.1/5.2 (fetcher cron scheduling/observability polish - still pending, only 5.3 is done), Task 8.x (polish - responsive/perf/testing docs), and the Task 7.4/5.3 TODOs (feed preview, enable-disabled-feed, per-feed fetch failure detail, feed import/export).
 
 ---
 
@@ -634,3 +642,4 @@ npm run dev               # Start dev server (port 5173)
 - [x] 1.3: Add lightweight DB migration system - hand-rolled, numbered migrations/*.sql embedded via embed.FS, schema_migrations tracking table, built as a learning exercise ahead of its original data-loss trigger
 - [x] 2.3: Add post images to the pipeline - image_url column/field/parsing/repo/API plumbing, server-side inline-SVG placeholder for posts with no image, verified live end-to-end
 - [x] 4.1: Set up HTTP server and middleware - explicit http.NewServeMux(), logging middleware wrapping the whole mux, JSON error responses (writeError), frontend now surfaces the real Go error message; CORS dropped entirely (browser never calls Go directly)
+- [x] 5.3: On-demand fetch from the dashboard - internal/fetcher.FetchAll extracted from cmd/fetcher, POST /api/fetch, dashboard "Fetch now" button with a custom use:enhance loading state, verified live against real feeds (and caught two real parser bugs along the way)
