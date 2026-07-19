@@ -8,9 +8,29 @@ import (
 	"github.com/karlo/dailyniche/internal/models"
 )
 
+// parser is a single, package-level gofeed.Parser configured with a
+// self-identifying User-Agent, reused across every ParseFeed call rather
+// than constructing a fresh default one each time. Two things motivated
+// this: gofeed's default UA is the literal string "Gofeed/1.0", which some
+// sites' security plugins block outright with a 403 - confirmed live
+// against multiple real feeds (a WordPress site, and rojcnet.pula.org/rss)
+// while a browser-like UA passes; and building a new *gofeed.Parser per
+// call was always wasteful once fetching many feeds in one run (see the
+// fetcher's FetchAll loop). Safe to share: gofeed.Parser's only mutable
+// state is its embedded *http.Client, which is itself documented as safe
+// for concurrent use - not that it matters yet, since FetchAll's loop is
+// sequential today anyway.
+var parser = newParser()
+
+func newParser() *gofeed.Parser {
+	p := gofeed.NewParser()
+	p.UserAgent = "DailyNiche/1.0 (personal RSS reader)"
+	return p
+}
+
 // ParseFeed fetches and parses the RSS/Atom/JSON feed at url.
 func ParseFeed(url string) (*gofeed.Feed, error) {
-	return gofeed.NewParser().ParseURL(url)
+	return parser.ParseURL(url)
 }
 
 // ExtractItems converts a parsed feed's items into Posts associated with

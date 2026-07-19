@@ -54,6 +54,29 @@ func TestParseFeed_FetchesAndParsesOverHTTP(t *testing.T) {
 	}
 }
 
+func TestParseFeed_SetsSelfIdentifyingUserAgent(t *testing.T) {
+	// given: a local server that records the incoming User-Agent header
+	var gotUserAgent string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUserAgent = r.Header.Get("User-Agent")
+		w.Write([]byte(sampleRSS))
+	}))
+	defer server.Close()
+
+	// when: we parse a feed from that server
+	if _, err := ParseFeed(server.URL); err != nil {
+		t.Fatalf("ParseFeed() returned error: %v", err)
+	}
+
+	// then: the request carried our self-identifying User-Agent, not
+	// gofeed's default "Gofeed/1.0" - some sites' security plugins block
+	// that default outright with a 403 (confirmed live against real feeds)
+	want := "DailyNiche/1.0 (personal RSS reader)"
+	if gotUserAgent != want {
+		t.Errorf("expected User-Agent %q, got %q", want, gotUserAgent)
+	}
+}
+
 func TestParseFeed_ReturnsErrorForUnreachableURL(t *testing.T) {
 	// given: a URL with nothing listening on it
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
