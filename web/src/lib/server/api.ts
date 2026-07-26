@@ -1,4 +1,4 @@
-import { API_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import type { Feed, FetchSummary, Post } from '../types';
 
 // ApiError carries the HTTP status alongside the message, so callers (e.g.
@@ -74,7 +74,7 @@ function toFetchSummary(wire: FetchSummaryWire): FetchSummary {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-	const res = await fetch(`${API_URL}${path}`, init);
+	const res = await fetch(`${env.API_URL}${path}`, init);
 	if (!res.ok) {
 		throw new ApiError(await errorMessage(res, path), res.status);
 	}
