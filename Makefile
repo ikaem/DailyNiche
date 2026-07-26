@@ -1,17 +1,24 @@
-.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean
+.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api
 
 help:
 	@echo "DailyNiche - available commands:"
-	@echo "  make dev            Run the API server and frontend dev server together"
-	@echo "  make api            Run the API server (go run)"
-	@echo "  make fetcher        Run the feed fetcher once, verbose"
-	@echo "  make fetcher-dry    Run the feed fetcher once, dry-run (no DB writes)"
-	@echo "  make seed           Seed the database with sample feeds/posts (dev only)"
-	@echo "  make db-reset       Delete the local database file"
-	@echo "  make test_api       Run all API tests"
-	@echo "  make build          Build both api and fetcher binaries"
-	@echo "  make web-dev        Run the frontend dev server"
-	@echo "  make clean          Remove built binaries"
+	@echo "  make dev              Run the API server and frontend dev server together"
+	@echo "  make api              Run the API server (go run)"
+	@echo "  make fetcher          Run the feed fetcher once, verbose"
+	@echo "  make fetcher-dry      Run the feed fetcher once, dry-run (no DB writes)"
+	@echo "  make seed             Seed the database with sample feeds/posts (dev only)"
+	@echo "  make db-reset         Delete the local database file"
+	@echo "  make test_api         Run all API tests"
+	@echo "  make build            Build both api and fetcher binaries"
+	@echo "  make web-dev          Run the frontend dev server"
+	@echo "  make clean            Remove built binaries"
+	@echo "  make docker-build-api Build the api Docker image (tag: dailyniche-api:test)"
+	@echo "  make docker-run-api   Run the built image locally, port 8080, persisted test volume"
+	@echo "  make docker-logs-api  Follow the running test container's logs"
+	@echo "  make docker-fetcher-api      Run the fetcher inside the running test container, verbose"
+	@echo "  make docker-fetcher-dry-api  Same, but dry-run (no DB writes)"
+	@echo "  make docker-stop-api  Stop and remove the test container (keeps the test volume)"
+	@echo "  make docker-clean-api Remove the test volume too (full reset)"
 
 # -j2 runs both targets concurrently in one make invocation - no extra
 # process-manager dependency (e.g. concurrently/foreman) needed for just two
@@ -50,3 +57,43 @@ web-dev:
 
 clean:
 	rm -rf api/bin
+
+# Docker (local image build/test, before deploying anything to the Pi) -
+# these build and run the exact same Dockerfile that'll eventually run on
+# the Pi, so problems surface here first rather than after a slower,
+# Pi-side rebuild-and-redeploy cycle.
+
+docker-build-api:
+	cd api && docker build -t dailyniche-api:test .
+
+# Runs the built image with a persistent named volume (survives container
+# restarts/recreates, unlike an anonymous volume) and DB_PATH pointed at it -
+# matching how the real deployment will mount a volume for the SQLite file.
+docker-run-api:
+	docker run -d --name dailyniche-api-test -p 8080:8080 \
+		-e DB_PATH=/data/dailyniche.db \
+		-v dailyniche-test-data:/data \
+		dailyniche-api:test
+
+docker-logs-api:
+	docker logs -f dailyniche-api-test
+
+# Runs the fetcher binary inside the already-running api container via
+# docker exec - this is exactly how the real cron job on the Pi invokes it
+# too (see CLAUDE.md's Task 9.3), so this is what actually verifies that
+# invocation path works, not just that the binary compiles.
+docker-fetcher-api:
+	docker exec dailyniche-api-test /app/fetcher -verbose
+
+docker-fetcher-dry-api:
+	docker exec dailyniche-api-test /app/fetcher -verbose -dry-run
+
+# Stops and removes the test container, but leaves the named volume (and
+# its data) in place - use docker-clean-api for a full wipe.
+docker-stop-api:
+	docker stop dailyniche-api-test && docker rm dailyniche-api-test
+
+# Full reset: also removes the persisted test database, so the next
+# docker-run-api starts from a completely empty state.
+docker-clean-api:
+	docker volume rm dailyniche-test-data
