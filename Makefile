@@ -1,4 +1,4 @@
-.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api docker-build-web docker-run-web docker-logs-web docker-stop-web
+.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api docker-build-web docker-run-web docker-logs-web docker-stop-web docker-up docker-down docker-logs docker-clean
 
 help:
 	@echo "DailyNiche - available commands:"
@@ -23,6 +23,10 @@ help:
 	@echo "  make docker-run-web   Run the built image locally, port 3000"
 	@echo "  make docker-logs-web  Follow the running test container's logs"
 	@echo "  make docker-stop-web  Stop and remove the test container"
+	@echo "  make docker-up        Build and start the full stack (api + web) via docker-compose.yml"
+	@echo "  make docker-down      Stop the full stack (keeps the database volume)"
+	@echo "  make docker-logs      Follow logs for both services"
+	@echo "  make docker-clean     Stop the full stack and remove the database volume too"
 
 # -j2 runs both targets concurrently in one make invocation - no extra
 # process-manager dependency (e.g. concurrently/foreman) needed for just two
@@ -123,3 +127,22 @@ docker-logs-web:
 
 docker-stop-web:
 	docker stop dailyniche-web-test && docker rm dailyniche-web-test
+
+# Whole-stack commands using the root docker-compose.yml (api + web
+# together, networked automatically) - distinct from the docker-*-api/
+# docker-*-web targets above, which test one service in isolation via plain
+# `docker run`.
+
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+# Also removes the named volume (dailyniche-data) - a full reset, unlike
+# docker-down, which leaves it in place.
+docker-clean:
+	docker compose down -v
