@@ -1,4 +1,4 @@
-.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api
+.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api docker-build-web docker-run-web docker-logs-web docker-stop-web
 
 help:
 	@echo "DailyNiche - available commands:"
@@ -19,6 +19,10 @@ help:
 	@echo "  make docker-fetcher-dry-api  Same, but dry-run (no DB writes)"
 	@echo "  make docker-stop-api  Stop and remove the test container (keeps the test volume)"
 	@echo "  make docker-clean-api Remove the test volume too (full reset)"
+	@echo "  make docker-build-web Build the web Docker image (tag: dailyniche-web:test)"
+	@echo "  make docker-run-web   Run the built image locally, port 3000"
+	@echo "  make docker-logs-web  Follow the running test container's logs"
+	@echo "  make docker-stop-web  Stop and remove the test container"
 
 # -j2 runs both targets concurrently in one make invocation - no extra
 # process-manager dependency (e.g. concurrently/foreman) needed for just two
@@ -97,3 +101,25 @@ docker-stop-api:
 # docker-run-api starts from a completely empty state.
 docker-clean-api:
 	docker volume rm dailyniche-test-data
+
+docker-build-web:
+	cd web && docker build -t dailyniche-web:test .
+
+# Standalone smoke test only - API_URL points nowhere reachable, since a
+# plain `docker run` container can't resolve "localhost" as the host or any
+# other separately-run container by default (confirmed empirically - this
+# is the same networking gap docker-compose.yml solves automatically via a
+# shared network + service-name DNS). Expect pages to render correctly but
+# show a handled "fetch failed" state (CLAUDE.md's Task 6.2 error-as-data
+# pattern) - that's success for this target's actual purpose: proving the
+# server itself starts and serves requests, not a real API integration test.
+docker-run-web:
+	docker run -d --name dailyniche-web-test -p 3000:3000 \
+		-e API_URL=http://localhost:8080 \
+		dailyniche-web:test
+
+docker-logs-web:
+	docker logs -f dailyniche-web-test
+
+docker-stop-web:
+	docker stop dailyniche-web-test && docker rm dailyniche-web-test
