@@ -25,6 +25,17 @@ services:
       # standalone `docker run` testing we did earlier tonight.
       API_URL: http://api:8080
       PORT: '3000'
+    networks:
+      - default
+      # Lets Caddy (a separate Compose project, /srv/caddy/ on the Pi) reach
+      # this container by name to reverse-proxy dailyniche.imkaem.xyz to it -
+      # Compose projects are on isolated networks by default, so without
+      # this, Caddy has no way to route to this container at all.
+      - proxy
 
 volumes:
   dailyniche-data:
+
+networks:
+  proxy:
+    external: true
