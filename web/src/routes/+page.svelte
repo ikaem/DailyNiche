@@ -10,7 +10,7 @@
 	let posts = $derived(data.posts.map(toPostModel));
 </script>
 
-<DateNav />
+<DateNav currentDate={data.date} />
 
 <main>
 	{#if data.error}

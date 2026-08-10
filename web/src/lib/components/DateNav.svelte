@@ -1,22 +1,68 @@
 <!--
 	Pill-style date navigation above the issue: prev/next day and a
-	date-jump input. Purely static for now - no props, no wiring. Task
-	6.1 gives it real prev/next/date-jump behavior once the API client
-	exists to load a different day's posts.
+	date-jump input. Navigates by updating the ?date= query param via
+	goto(), which re-runs +page.server.ts's load - a plain server-rendered
+	navigation, not a client-side fetch, consistent with how the rest of
+	this app avoids the browser talking to data sources directly.
 -->
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { addDaysUTC } from '$lib/dateUtils';
+
+	let { currentDate }: { currentDate: string } = $props();
+
+	function navigateTo(date: string) {
+		goto(`?date=${date}`);
+	}
+
+	function goToPrevious() {
+		navigateTo(addDaysUTC(currentDate, -1));
+	}
+
+	function goToNext() {
+		navigateTo(addDaysUTC(currentDate, 1));
+	}
+
+	function onDateInputChange(event: Event) {
+		const value = (event.target as HTMLInputElement).value;
+		if (value) {
+			navigateTo(value);
+		}
+	}
+
+	// hr-HR to match postModel.ts's existing (if deferred-to-be-configurable,
+	// per its own TODO) locale convention for dates elsewhere in the app -
+	// the "Friday, July 10, 2026" this replaced was just placeholder mockup
+	// text, not a deliberate choice to use English specifically here.
+	const fullLabel = $derived(
+		new Intl.DateTimeFormat('hr-HR', {
+			weekday: 'long',
+			day: 'numeric',
+			month: 'long',
+			year: 'numeric'
+		}).format(new Date(`${currentDate}T00:00:00Z`))
+	);
+
+	const shortLabel = $derived(
+		new Intl.DateTimeFormat('hr-HR', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		}).format(new Date(`${currentDate}T00:00:00Z`))
+	);
+</script>
+
 <div class="date-nav">
 	<div class="pill">
-		<!-- button, not a link - not yet wired to real navigation (Task 6.1) -->
-		<button type="button"
+		<button type="button" onclick={goToPrevious}
 			><span class="full">&larr; Previous</span><span class="short">&lsaquo;</span></button
 		>
 		<span class="current-date">
-			<span class="full">Friday, July 10, 2026</span>
-			<span class="short">Jul 10, 2026</span>
+			<span class="full">{fullLabel}</span>
+			<span class="short">{shortLabel}</span>
 		</span>
-		<input type="date" value="2026-07-10" />
-		<!-- button, not a link - not yet wired to real navigation (Task 6.1) -->
-		<button type="button"
+		<input type="date" value={currentDate} onchange={onDateInputChange} />
+		<button type="button" onclick={goToNext}
 			><span class="full">Next &rarr;</span><span class="short">&rsaquo;</span></button
 		>
 	</div>
