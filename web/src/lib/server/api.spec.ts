@@ -176,15 +176,37 @@ describe('api', () => {
 
 	describe('fetchNow', () => {
 		it('sends a POST request and maps the wire summary, renaming new to newCount', async () => {
-			// given: the API reports 3 new posts, 1 duplicate, 0 errors
-			vi.mocked(fetch).mockResolvedValue(mockResponse({ new: 3, duplicates: 1, errors: 0 }));
+			// given: the API reports 3 new posts, 1 duplicate, 0 errors, no failures
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ new: 3, duplicates: 1, errors: 0, failed_feeds: [] })
+			);
 
 			// when: triggering an on-demand fetch
 			const summary = await fetchNow();
 
 			// then: fetch is called with POST, and the wire's "new" field maps to newCount
 			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/fetch`, { method: 'POST' });
-			expect(summary).toEqual({ newCount: 3, duplicates: 1, errors: 0 });
+			expect(summary).toEqual({ newCount: 3, duplicates: 1, errors: 0, failedFeeds: [] });
+		});
+
+		it('maps failed_feeds entries to camelCase feedName/error', async () => {
+			// given: the API reports one failed feed with a real error message
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({
+					new: 0,
+					duplicates: 0,
+					errors: 1,
+					failed_feeds: [{ feed_name: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }]
+				})
+			);
+
+			// when: triggering an on-demand fetch
+			const summary = await fetchNow();
+
+			// then: the failed feed's name and error map to camelCase, unsanitized
+			expect(summary.failedFeeds).toEqual([
+				{ feedName: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }
+			]);
 		});
 	});
 

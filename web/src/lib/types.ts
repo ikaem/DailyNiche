@@ -33,6 +33,14 @@ export interface Feed {
 	disabledAt: string | null;
 }
 
+// FeedFailure identifies a feed that failed during a fetch, and why - lets
+// the dashboard show which feed broke (e.g. an expired TLS certificate)
+// instead of only a bare error count.
+export interface FeedFailure {
+	feedName: string;
+	error: string;
+}
+
 // FetchSummary reports what an on-demand fetch (POST /api/fetch) did.
 // newCount, not new - "new" is a reserved word in JS/TS, so it can't be
 // used as a destructured binding name (`const { new } = summary` is a
@@ -42,4 +50,5 @@ export interface FetchSummary {
 	newCount: number;
 	duplicates: number;
 	errors: number;
+	failedFeeds: FeedFailure[];
 }

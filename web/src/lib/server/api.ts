@@ -38,10 +38,16 @@ interface FeedWire {
 	updated_at: string;
 }
 
+interface FeedFailureWire {
+	feed_name: string;
+	error: string;
+}
+
 interface FetchSummaryWire {
 	new: number;
 	duplicates: number;
 	errors: number;
+	failed_feeds: FeedFailureWire[];
 }
 
 function toPost(wire: PostWire): Post {
@@ -69,7 +75,8 @@ function toFetchSummary(wire: FetchSummaryWire): FetchSummary {
 	return {
 		newCount: wire.new,
 		duplicates: wire.duplicates,
-		errors: wire.errors
+		errors: wire.errors,
+		failedFeeds: wire.failed_feeds.map((f) => ({ feedName: f.feed_name, error: f.error }))
 	};
 }
 

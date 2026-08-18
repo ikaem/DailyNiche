@@ -99,7 +99,16 @@ function summarizeFetch(summary: FetchSummary): string {
 	let message = `Fetched ${summary.newCount} new ${postsLabel}`;
 	if (summary.errors > 0) {
 		const feedsLabel = summary.errors === 1 ? 'feed' : 'feeds';
-		message += ` (${summary.errors} ${feedsLabel} failed)`;
+		message += ` (${summary.errors} ${feedsLabel} failed`;
+		// Real underlying error messages (e.g. "tls: certificate has expired"),
+		// not sanitized ones - this is a single-user tool, and that detail is
+		// exactly what lets the failure be identified as the remote site's
+		// problem, not ours (see CLAUDE.md's Task 5.3 notes).
+		if (summary.failedFeeds.length > 0) {
+			const details = summary.failedFeeds.map((f) => `${f.feedName} - ${f.error}`).join('; ');
+			message += `: ${details}`;
+		}
+		message += ')';
 	}
 	return message;
 }

@@ -229,7 +229,7 @@ describe('dashboard actions.deleteFeed', () => {
 describe('dashboard actions.fetchNow', () => {
 	it('returns a fetchSummary message on success, distinct from the error message field', async () => {
 		// given: fetchNow resolves with a summary
-		fetchNow.mockResolvedValue({ newCount: 3, duplicates: 1, errors: 0 });
+		fetchNow.mockResolvedValue({ newCount: 3, duplicates: 1, errors: 0, failedFeeds: [] });
 
 		// when: the action runs
 		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
@@ -241,7 +241,7 @@ describe('dashboard actions.fetchNow', () => {
 
 	it('uses singular wording for exactly 1 new post', async () => {
 		// given: fetchNow resolves with exactly 1 new post
-		fetchNow.mockResolvedValue({ newCount: 1, duplicates: 0, errors: 0 });
+		fetchNow.mockResolvedValue({ newCount: 1, duplicates: 0, errors: 0, failedFeeds: [] });
 
 		// when: the action runs
 		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
@@ -250,15 +250,34 @@ describe('dashboard actions.fetchNow', () => {
 		expect(result).toEqual({ fetchSummary: 'Fetched 1 new post' });
 	});
 
-	it('mentions failed feeds in the summary when errors occurred', async () => {
-		// given: fetchNow resolves with 2 feed errors
-		fetchNow.mockResolvedValue({ newCount: 0, duplicates: 0, errors: 2 });
+	it('mentions failed feeds in the summary when errors occurred, without per-feed detail if none was given', async () => {
+		// given: fetchNow resolves with 2 feed errors but no failedFeeds detail
+		fetchNow.mockResolvedValue({ newCount: 0, duplicates: 0, errors: 2, failedFeeds: [] });
 
 		// when: the action runs
 		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
 
-		// then: the summary mentions the failed feeds
+		// then: the summary mentions the failed feed count only
 		expect(result).toEqual({ fetchSummary: 'Fetched 0 new posts (2 feeds failed)' });
+	});
+
+	it('includes which feed failed and why when failedFeeds detail is present', async () => {
+		// given: fetchNow resolves with one failed feed, naming it and the real error
+		fetchNow.mockResolvedValue({
+			newCount: 0,
+			duplicates: 0,
+			errors: 1,
+			failedFeeds: [{ feedName: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }]
+		});
+
+		// when: the action runs
+		const result = await actions.fetchNow({} as Parameters<typeof actions.fetchNow>[0]);
+
+		// then: the summary names the feed and includes the real, unsanitized error
+		expect(result).toEqual({
+			fetchSummary:
+				'Fetched 0 new posts (1 feed failed: Sputnikmusic Staff Blog - tls: certificate has expired)'
+		});
 	});
 
 	it('fails with the ApiError status and message when the Go API rejects the fetch', async () => {
