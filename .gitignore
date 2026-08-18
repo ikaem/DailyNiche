@@ -56,3 +56,7 @@ Thumbs.db
 # Deploy-time logs (Pi only - build output, cron fetch runs)
 deploy.log
 cron-fetch.log
+
+# API server log (LOG_PATH default when running locally without it set -
+# in Docker this is redirected to /data/api.log instead, see docker-compose.yml)
+api.log
