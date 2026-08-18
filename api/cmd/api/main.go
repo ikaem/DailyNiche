@@ -1,7 +1,9 @@
 package main
 
 import (
+	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -10,7 +12,28 @@ import (
 	"github.com/karlo/dailyniche/internal/middleware"
 )
 
+// configureLogging installs a slog default logger writing to out - mirrors
+// cmd/fetcher's own configureLogging. Needed so fetcher.FetchAll's log
+// output (Warn on a per-feed failure, Info on start/completion) lands
+// somewhere durable when triggered via the on-demand POST /api/fetch
+// endpoint, instead of only the container's stdout, which is lost the next
+// time the container gets recreated (e.g. on every deploy).
+func configureLogging(out io.Writer) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: slog.LevelInfo})))
+}
+
 func main() {
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		logPath = "api.log"
+	}
+	logFile, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatalf("failed to open log file: %v", err)
+	}
+	defer logFile.Close()
+	configureLogging(io.MultiWriter(os.Stdout, logFile))
+
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "dailyniche.db"

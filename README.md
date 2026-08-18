@@ -95,6 +95,8 @@ Pass `-verbose` for `Debug`-level detail (per-feed fetch attempts, dry-run notic
 
 If the fetcher receives `SIGTERM` or `SIGINT` (e.g. a system shutdown, or a manually cancelled run), it stops cleanly before starting its next feed rather than being killed mid-fetch, logs a warning noting the early stop, and exits with code 130.
 
+**The API server logs the same way**, for the same reason: an on-demand fetch triggered from the dashboard's "Fetch now" button runs inside the `api` server process itself, not the separate `fetcher` binary, so without this its output would only ever reach the container's ephemeral stdout - lost the next time the container gets recreated (i.e. every deploy). Its own `LOG_PATH` (default `api.log`) captures this, plus the server's regular startup/request logging as a side effect of sharing the same underlying logger. In the Docker deployment, `LOG_PATH` is set to `/data/api.log` - inside the same already-persisted volume as the SQLite database, not the container's throwaway filesystem.
+
 ## Project Structure
 
 See [CLAUDE.md](./CLAUDE.md) for the full implementation guide and task breakdown.

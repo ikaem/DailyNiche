@@ -8,6 +8,10 @@ services:
     environment:
       DB_PATH: /data/dailyniche.db
       PORT: '8080'
+      # Written into the same already-persisted volume as the database, not
+      # the container's own throwaway filesystem - otherwise this history
+      # would be lost every time the container gets recreated (every deploy).
+      LOG_PATH: /data/api.log
     volumes:
       - dailyniche-data:/data
 
