@@ -69,7 +69,7 @@
 <div class="date-nav">
 	<div class="pill">
 		<button type="button" onclick={goToPrevious}
-			><span class="full">&larr; Previous</span><span class="short">&lsaquo;</span></button
+			><span class="arrow">&lsaquo;</span><span class="full">Previous</span></button
 		>
 		<span class="current-date">
 			<span class="full">{fullLabel}</span>
@@ -78,7 +78,7 @@
 		<button type="button" class="today" onclick={goToToday}>Today</button>
 		<input type="date" value={currentDate} onchange={onDateInputChange} />
 		<button type="button" onclick={goToNext} disabled={isToday}
-			><span class="full">Next &rarr;</span><span class="short">&rsaquo;</span></button
+			><span class="full">Next</span><span class="arrow">&rsaquo;</span></button
 		>
 	</div>
 </div>
@@ -102,6 +102,9 @@
 		box-shadow: 0 1px 3px rgba(24, 20, 15, 0.05);
 	}
 	.date-nav button {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 		background: none;
 		border: none;
 		font-family: inherit;
@@ -142,6 +145,12 @@
 	.date-nav .full {
 		display: inline;
 	}
+	/* Previous/Next's arrow is a single always-visible element rather than
+	   separate full/short copies (it looks identical either way) - only the
+	   "Previous"/"Next" word next to it hides on small screens, via .full
+	   above. The button's own flex layout (see .date-nav button) positions
+	   it, rather than vertical-align, which turned out font/browser-
+	   dependent (confirmed by comparing real screenshots across browsers). */
 
 	@media (max-width: 640px) {
 		.date-nav {
