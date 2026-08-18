@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { addDaysUTC } from './dateUtils';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { addDaysUTC, todayUTC } from './dateUtils';
 
 describe('addDaysUTC', () => {
 	it('adds a positive number of days within the same month', () => {
@@ -45,5 +45,22 @@ describe('addDaysUTC', () => {
 
 		// then: it rolls into the next year
 		expect(result).toBe('2027-01-01');
+	});
+});
+
+describe('todayUTC', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('returns the current date in UTC as YYYY-MM-DD', () => {
+		// given: a frozen system time
+		vi.setSystemTime(new Date('2026-07-15T23:30:00Z'));
+
+		// when: asking for today's date
+		const result = todayUTC();
+
+		// then: it reflects the UTC date, not shifted by any local timezone
+		expect(result).toBe('2026-07-15');
 	});
 });

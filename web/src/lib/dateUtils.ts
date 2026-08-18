@@ -8,3 +8,10 @@ export function addDaysUTC(dateStr: string, days: number): string {
 	date.setUTCDate(date.getUTCDate() + days);
 	return date.toISOString().slice(0, 10);
 }
+
+// Today's date in UTC as YYYY-MM-DD - shared here so both server (+page.server.ts)
+// and client (DateNav.svelte, for disabling "Next" once already on today) agree
+// on what "today" means, rather than each computing it independently.
+export function todayUTC(): string {
+	return new Date().toISOString().slice(0, 10);
+}

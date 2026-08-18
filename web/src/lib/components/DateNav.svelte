@@ -8,9 +8,14 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { addDaysUTC } from '$lib/dateUtils';
+	import { addDaysUTC, todayUTC } from '$lib/dateUtils';
 
 	let { currentDate }: { currentDate: string } = $props();
+
+	// There's no future data to show past today, so "Next" is disabled once
+	// currentDate reaches it - todayUTC() is shared with +page.server.ts's own
+	// copy via dateUtils.ts so client and server agree on what "today" means.
+	const isToday = $derived(currentDate === todayUTC());
 
 	function navigateTo(date: string) {
 		goto(`?date=${date}`);
@@ -72,7 +77,7 @@
 		</span>
 		<button type="button" class="today" onclick={goToToday}>Today</button>
 		<input type="date" value={currentDate} onchange={onDateInputChange} />
-		<button type="button" onclick={goToNext}
+		<button type="button" onclick={goToNext} disabled={isToday}
 			><span class="full">Next &rarr;</span><span class="short">&rsaquo;</span></button
 		>
 	</div>
@@ -109,6 +114,13 @@
 	}
 	.date-nav button:hover {
 		color: var(--accent);
+	}
+	.date-nav button:disabled {
+		cursor: default;
+		opacity: 0.4;
+	}
+	.date-nav button:disabled:hover {
+		color: var(--ink-soft);
 	}
 	.date-nav .current-date {
 		font-weight: 600;
