@@ -1,4 +1,4 @@
-.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api docker-build-web docker-run-web docker-logs-web docker-stop-web docker-up docker-down docker-logs docker-clean
+.PHONY: help dev api fetcher fetcher-dry seed db-reset test_api build build-api build-fetcher web-dev clean docker-build-api docker-run-api docker-logs-api docker-fetcher-api docker-fetcher-dry-api docker-stop-api docker-clean-api docker-build-web docker-run-web docker-logs-web docker-stop-web docker-up docker-down docker-logs docker-clean deploy
 
 help:
 	@echo "DailyNiche - available commands:"
@@ -27,6 +27,7 @@ help:
 	@echo "  make docker-down      Stop the full stack (keeps the database volume)"
 	@echo "  make docker-logs      Follow logs for both services"
 	@echo "  make docker-clean     Stop the full stack and remove the database volume too"
+	@echo "  make deploy           Deploy to the Pi: git pull, rebuild, prune old images"
 
 # -j2 runs both targets concurrently in one make invocation - no extra
 # process-manager dependency (e.g. concurrently/foreman) needed for just two
@@ -146,3 +147,12 @@ docker-logs:
 # docker-down, which leaves it in place.
 docker-clean:
 	docker compose down -v
+
+# Deploys to the Pi over the ssh alias (see ~/.ssh/config, routed through
+# Cloudflare Tunnel). /srv/dailyniche is a real git clone of this repo's
+# GitHub remote, not an rsync destination - only committed and pushed
+# changes can be deployed, deliberately. `image prune -f` (not `-a`) clears
+# only dangling/untagged images left behind by `--build`'s rebuild, never
+# anything still tagged - see docs/PI_SETUP.md's Task 9.1 notes for why.
+deploy:
+	ssh kaempi5 "cd /srv/dailyniche && git pull && docker compose up -d --build && docker image prune -f"
