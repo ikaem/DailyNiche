@@ -76,7 +76,29 @@
 			<span class="short">{shortLabel}</span>
 		</span>
 		<button type="button" class="today" onclick={goToToday}>Today</button>
-		<input type="date" value={currentDate} onchange={onDateInputChange} />
+		<span class="date-picker">
+			<input
+				type="date"
+				value={currentDate}
+				onchange={onDateInputChange}
+				aria-label="Jump to date"
+			/>
+			<svg
+				class="calendar-icon"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				aria-hidden="true"
+			>
+				<rect x="3" y="5" width="18" height="16" rx="2" />
+				<line x1="3" y1="10" x2="21" y2="10" />
+				<line x1="8" y1="3" x2="8" y2="7" />
+				<line x1="16" y1="3" x2="16" y2="7" />
+			</svg>
+		</span>
 		<button type="button" onclick={goToNext} disabled={isToday}
 			><span class="full">Next</span><span class="arrow">&rsaquo;</span></button
 		>
@@ -145,6 +167,16 @@
 	.date-nav .full {
 		display: inline;
 	}
+	.date-picker {
+		position: relative;
+		display: inline-flex;
+	}
+	/* Hidden on desktop, where the native input already shows its own
+	   working icon next to the visible date text - only needed once the
+	   mobile view collapses the input down to icon-only, below. */
+	.date-picker .calendar-icon {
+		display: none;
+	}
 	/* Previous/Next's arrow is a single always-visible element rather than
 	   separate full/short copies (it looks identical either way) - only the
 	   "Previous"/"Next" word next to it hides on small screens, via .full
@@ -169,9 +201,42 @@
 		.date-nav .current-date {
 			font-size: 0.8rem;
 		}
-		.date-nav input {
+		/* The native picker-indicator icon's position inside a shrunk input is
+		   browser/OS-controlled and not reliably centerable via padding
+		   (confirmed empirically - it lands in a different spot in different
+		   browsers, the same portability problem the arrow alignment fix hit
+		   earlier). Instead: make the real input an invisible, full-circle
+		   click target (still fully functional - clicking/tapping anywhere
+		   on the circle opens the native date picker), and draw our own SVG
+		   calendar icon on top, centered via ordinary flexbox - guaranteed
+		   pixel-perfect in every browser since it's not relying on any
+		   browser's internal form-control layout at all. */
+		.date-picker {
 			width: 1.6rem;
-			overflow: hidden;
+			height: 1.6rem;
+		}
+		.date-nav input {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			padding: 0;
+			opacity: 0;
+			cursor: pointer;
+		}
+		.date-picker .calendar-icon {
+			display: flex;
+			position: absolute;
+			inset: 0;
+			align-items: center;
+			justify-content: center;
+			width: 100%;
+			height: 100%;
+			padding: 0.4rem;
+			border-radius: 999px;
+			background: var(--accent-soft);
+			color: var(--accent);
+			pointer-events: none;
 		}
 	}
 </style>
