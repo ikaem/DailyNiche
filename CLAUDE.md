@@ -300,6 +300,7 @@ Once the commit is made, I start the next step with its context.
   - [x] Test: can call repeatedly without issues
   - PR: "feat: integrate feed fetcher with database"
   - Note: `main()`'s logic was extracted into a testable `run(args []string, dbPath string) int` (returns an exit code instead of calling `os.Exit` directly) as part of this task, per the earlier TODO - this is exactly the point where the real branching logic (per-feed error handling, dry-run, disabled-feed skipping) made a testable `run()` worth it.
+  - TODO (added 2026-08-18, not urgent): `FetchAll`'s per-feed loop fetches one feed at a time, fully sequentially - noticed live that total fetch time scales with feed count (sum of each feed's network latency, not the slowest one). Fix would parallelize the network fetch (`feeds.ParseFeed`) via a small bounded worker pool (goroutines + a semaphore/errgroup), while keeping database writes (`repos.CreatePost`) serialized - SQLite doesn't handle concurrent writes well, so fetch-in-parallel/write-sequentially is the right split, not naive full parallelization. Worth it once feed count grows into the dozens; not worth the added concurrency complexity (synchronization, per-feed error handling across goroutines) at the current handful-of-feeds scale where a fetch already completes in a few seconds.
 
 ---
 
@@ -414,6 +415,10 @@ Once the commit is made, I start the next step with its context.
     - Reposition the current-date label so it stays visible on smaller screens - currently gets visually cramped/hidden per a live report on a narrow viewport.
     - Align the prev/next arrows horizontally in line with their "Previous"/"Next" text labels - currently not vertically aligned correctly with the text.
     - On smaller screens, the calendar icon inside the date input's circle renders off-center.
+  - TODO (added 2026-08-18, not yet speced - capturing the idea only, to be defined in more detail before building): three related post-interaction features, touching `PostHero`/`PostMedium`/`PostListItem`:
+    - Mark a post as read - a small icon/indicator directly on the post itself, not a move to some other list/page - purely a visual "already seen this" marker.
+    - "Add to read" (read-later) - saves a post to a list; surfaced either as its own page or a dashboard section, not decided yet.
+    - "Add to favorites" - same shape as read-later; own page or dashboard section, not decided yet.
 
 - [x] **7.3: Bottom section** - superseded by `PostListItem.svelte`/`BelowTheFold.svelte` above (no separate `BottomNews.svelte` - one list-item component serves this role)
 
