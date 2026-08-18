@@ -581,21 +581,17 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
   - [ ] Test: Access from another device via the public URL
   - PR: "docs: document Raspberry Pi deployment and Cloudflare Tunnel setup"
 
-- [ ] **9.3: Set up daily cron job on Pi** (1 hour)
+- [x] **9.3: Set up daily cron job on Pi** (1 hour)
   - **Confirmed (2026-07-18):** cron runs on the Pi's host OS, not inside the container - explicitly discussed and decided against running a cron daemon inside the Docker container (would need an init system like tini/supervisord to manage two processes in one container, real added complexity for no benefit). The host already has cron; it just needs to invoke the container from outside on schedule, per the `docker-compose exec` line already below.
-  - [ ] SSH into Pi
-  - [ ] Create cron entry to run fetcher daily:
+  - Installed 2026-08-18, right after Task 9.1's git-based deploy went live, via `ssh kaempi5` (the Cloudflare Tunnel SSH alias):
     ```bash
-    0 3 * * * cd /path/to/DailyNiche && api/cmd/fetcher -verbose
+    0 3 * * * cd /srv/dailyniche && /usr/bin/docker compose exec -T api /app/fetcher -verbose >> /srv/dailyniche/cron-fetch.log 2>&1
     ```
-    Or if using Docker:
-    ```bash
-    0 3 * * * docker-compose -f /path/to/docker-compose.yml exec api /app/fetcher -verbose
-    ```
-  - [ ] Test: manually run the command, verify posts are fetched
-  - [ ] Set up log rotation (optional, logs don't grow too fast for personal use)
-  - [ ] Document cron setup in README
-  - PR: "docs: document cron job setup for Pi"
+  - `-T` disables the pseudo-TTY `docker compose exec` allocates by default - cron has no terminal to attach one to, and this flag is what avoids that failing silently or hanging. `/usr/bin/docker` spelled out in full since cron's `PATH` is minimal and may not include it (confirmed via `which docker` on the Pi first, rather than assuming).
+  - Verified before installing: `docker compose exec -T api /app/fetcher -verbose -dry-run` (run manually, matching cron's exact invocation including the `cd` + implicit compose-file lookup) completed cleanly - 7 feeds processed, 0 errors, exit code 0.
+  - `3am` is the Pi's local time (`Europe/Zagreb`, confirmed via `timedatectl`), not UTC - only controls when the daily fetch runs; unrelated to the app's own UTC-everywhere data convention (see Timestamps & Timezones note below).
+  - Log rotation: still not set up, per the original "optional, logs don't grow too fast for personal use" call - unchanged.
+  - Documented in README's "Automating the Fetcher (Cron)" section, as a new "On the Raspberry Pi (Docker deployment)" subsection alongside the existing local (non-Docker) instructions.
 
 - [ ] **9.4: Backup strategy** (optional, 30 min)
   - [ ] Decide: daily backup of SQLite to cloud storage (e.g., rsync to a backup server, or tar + upload)

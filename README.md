@@ -75,6 +75,14 @@ Or, against a built binary (see `make build`, which outputs to `api/bin/`):
 
 You can also trigger a fetch on demand from the dashboard's "Fetch now" button, without waiting for the next scheduled run.
 
+**On the Raspberry Pi (Docker deployment):** cron runs on the Pi's host OS, not inside the container - it invokes the fetcher binary inside the already-running `api` container via `docker compose exec`:
+
+```
+0 3 * * * cd /srv/dailyniche && /usr/bin/docker compose exec -T api /app/fetcher -verbose >> /srv/dailyniche/cron-fetch.log 2>&1
+```
+
+`-T` disables the pseudo-TTY `docker compose exec` allocates by default - needed here since cron has no terminal to attach one to. `/usr/bin/docker` is spelled out in full because cron jobs run with a minimal `PATH` that may not include it. `3am` here is the Pi's local time (`Europe/Zagreb`), not UTC - this only controls when the daily fetch runs, unrelated to the app's own UTC-everywhere data convention.
+
 ### Fetcher Logging
 
 Every run logs structured (`key=value`) output to both stdout and a log file, so a cron-triggered run's history is still available later even though nothing is watching its stdout live. The log file's path comes from the `LOG_PATH` env var, defaulting to `fetcher.log` in the working directory the fetcher was started from:
