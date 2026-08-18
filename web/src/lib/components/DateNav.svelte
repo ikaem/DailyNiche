@@ -7,12 +7,21 @@
 -->
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { addDaysUTC } from '$lib/dateUtils';
 
 	let { currentDate }: { currentDate: string } = $props();
 
 	function navigateTo(date: string) {
 		goto(`?date=${date}`);
+	}
+
+	// Navigates with no ?date= param at all, rather than ?date=<today>, so
+	// this reuses +page.server.ts's existing default path (getPostsToday())
+	// instead of exercising the ?date= / getPostsByDate() path for what
+	// should be the exact same data.
+	function goToToday() {
+		goto(page.url.pathname);
 	}
 
 	function goToPrevious() {
@@ -61,6 +70,7 @@
 			<span class="full">{fullLabel}</span>
 			<span class="short">{shortLabel}</span>
 		</span>
+		<button type="button" class="today" onclick={goToToday}>Today</button>
 		<input type="date" value={currentDate} onchange={onDateInputChange} />
 		<button type="button" onclick={goToNext}
 			><span class="full">Next &rarr;</span><span class="short">&rsaquo;</span></button
