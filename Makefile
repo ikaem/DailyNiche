@@ -27,7 +27,7 @@ help:
 	@echo "  make docker-down      Stop the full stack (keeps the database volume)"
 	@echo "  make docker-logs      Follow logs for both services"
 	@echo "  make docker-clean     Stop the full stack and remove the database volume too"
-	@echo "  make deploy           Deploy to the Pi: git pull, rebuild, prune old images"
+	@echo "  make deploy           Deploy to the Pi: git pull, rebuild, prune old images + stale build cache"
 
 # -j2 runs both targets concurrently in one make invocation - no extra
 # process-manager dependency (e.g. concurrently/foreman) needed for just two
@@ -154,5 +154,11 @@ docker-clean:
 # changes can be deployed, deliberately. `image prune -f` (not `-a`) clears
 # only dangling/untagged images left behind by `--build`'s rebuild, never
 # anything still tagged - see docs/PI_SETUP.md's Task 9.1 notes for why.
+# `builder prune --filter until=168h` clears BuildKit's layer cache, but
+# only entries older than 7 days - unlike image prune, nothing else touches
+# this cache, so it grows forever otherwise (confirmed live: 2.8GB
+# reclaimable after just a handful of deploys). The 7-day filter is safe to
+# run on every deploy since it never removes cache from a build that just
+# ran moments ago - only stale entries a future build wouldn't reuse anyway.
 deploy:
-	ssh kaempi5 "cd /srv/dailyniche && git pull && docker compose up -d --build && docker image prune -f"
+	ssh kaempi5 "cd /srv/dailyniche && git pull && docker compose up -d --build && docker image prune -f && docker builder prune -f --filter until=168h"
