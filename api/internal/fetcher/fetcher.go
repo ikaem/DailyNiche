@@ -16,12 +16,25 @@ type Options struct {
 	DryRun bool
 }
 
-// Summary reports what happened during a FetchAll run.
+// FeedFailure records that a specific feed could not be fetched, and why -
+// surfaced so a failure (e.g. an expired TLS certificate, discovered live
+// via a real feed) is identifiable by name without checking server logs.
+type FeedFailure struct {
+	FeedName string
+	Error    string
+}
+
+// Summary reports what happened during a FetchAll run. FailedFeeds is
+// populated only for a feed-level fetch/parse failure (feeds.ParseFeed),
+// not a per-post storage failure below - the latter is a rarer, different
+// class of problem (e.g. a DB issue) and still counted in Errors, just not
+// itemized by feed name here.
 type Summary struct {
 	FeedsProcessed int
 	New            int
 	Duplicates     int
 	Errors         int
+	FailedFeeds    []FeedFailure
 }
 
 // FetchAll fetches every enabled feed in conn, storing new posts. A
@@ -80,6 +93,7 @@ func FetchAll(ctx context.Context, conn *sql.DB, opts Options) (Summary, error) 
 		if err != nil {
 			slog.Warn("skipping feed", "feed_name", feed.Name, "feed_url", feed.URL, "error", err)
 			summary.Errors++
+			summary.FailedFeeds = append(summary.FailedFeeds, FeedFailure{FeedName: feed.Name, Error: err.Error()})
 			continue
 		}
 

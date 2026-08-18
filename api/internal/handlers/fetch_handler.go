@@ -8,11 +8,18 @@ import (
 	"github.com/karlo/dailyniche/internal/fetcher"
 )
 
+// FeedFailureResponse is one entry in FetchSummaryResponse.FailedFeeds.
+type FeedFailureResponse struct {
+	FeedName string `json:"feed_name"`
+	Error    string `json:"error"`
+}
+
 // FetchSummaryResponse is the JSON shape returned after an on-demand fetch.
 type FetchSummaryResponse struct {
-	New        int `json:"new"`
-	Duplicates int `json:"duplicates"`
-	Errors     int `json:"errors"`
+	New         int                   `json:"new"`
+	Duplicates  int                   `json:"duplicates"`
+	Errors      int                   `json:"errors"`
+	FailedFeeds []FeedFailureResponse `json:"failed_feeds"`
 }
 
 // Fetch returns an http.HandlerFunc for POST /api/fetch, backed by conn.
@@ -29,12 +36,18 @@ func Fetch(conn *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		failedFeeds := make([]FeedFailureResponse, len(summary.FailedFeeds))
+		for i, f := range summary.FailedFeeds {
+			failedFeeds[i] = FeedFailureResponse{FeedName: f.FeedName, Error: f.Error}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(FetchSummaryResponse{
-			New:        summary.New,
-			Duplicates: summary.Duplicates,
-			Errors:     summary.Errors,
+			New:         summary.New,
+			Duplicates:  summary.Duplicates,
+			Errors:      summary.Errors,
+			FailedFeeds: failedFeeds,
 		})
 	}
 }

@@ -158,13 +158,23 @@ func TestFetchAll_SkipsUnreachableFeedButContinuesWithOthers(t *testing.T) {
 	// when: we fetch all feeds
 	summary, err := FetchAll(context.Background(), conn, Options{})
 
-	// then: no top-level error, the dead feed is counted as an error, and
-	// the working feed's posts are still stored
+	// then: no top-level error, the dead feed is counted as an error and
+	// recorded by name with a reason, and the working feed's posts are
+	// still stored
 	if err != nil {
 		t.Fatalf("FetchAll() returned error: %v", err)
 	}
 	if summary.Errors != 1 {
 		t.Errorf("expected 1 error for the dead feed, got %d", summary.Errors)
+	}
+	if len(summary.FailedFeeds) != 1 {
+		t.Fatalf("expected 1 failed feed recorded, got %d: %+v", len(summary.FailedFeeds), summary.FailedFeeds)
+	}
+	if summary.FailedFeeds[0].FeedName != "Dead Feed" {
+		t.Errorf("expected failed feed name %q, got %q", "Dead Feed", summary.FailedFeeds[0].FeedName)
+	}
+	if summary.FailedFeeds[0].Error == "" {
+		t.Errorf("expected a non-empty error message for the failed feed")
 	}
 	if count := countPosts(t, conn); count != 2 {
 		t.Fatalf("expected 2 posts from the working feed, got %d", count)

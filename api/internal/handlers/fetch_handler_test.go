@@ -68,6 +68,46 @@ func TestFetch_FetchesAndReturnsSummary(t *testing.T) {
 	}
 }
 
+func TestFetch_ReportsFailedFeedsWithReason(t *testing.T) {
+	// given: one dead feed and one working feed
+	workingServer := newFetchSampleFeedServer()
+	defer workingServer.Close()
+	deadServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	deadURL := deadServer.URL
+	deadServer.Close()
+
+	conn := newTestDB(t)
+	if _, err := repos.CreateFeed(conn, "Dead Feed", deadURL); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if _, err := repos.CreateFeed(conn, "Working Feed", workingServer.URL); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we request POST /api/fetch
+	req := httptest.NewRequest(http.MethodPost, "/api/fetch", nil)
+	rec := httptest.NewRecorder()
+	Fetch(conn)(rec, req)
+
+	// then: the response identifies which feed failed and why, not just a count
+	var got FetchSummaryResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if got.Errors != 1 {
+		t.Errorf("expected 1 error, got %d", got.Errors)
+	}
+	if len(got.FailedFeeds) != 1 {
+		t.Fatalf("expected 1 failed feed in response, got %d: %+v", len(got.FailedFeeds), got.FailedFeeds)
+	}
+	if got.FailedFeeds[0].FeedName != "Dead Feed" {
+		t.Errorf("expected failed feed name %q, got %q", "Dead Feed", got.FailedFeeds[0].FeedName)
+	}
+	if got.FailedFeeds[0].Error == "" {
+		t.Errorf("expected a non-empty error message")
+	}
+}
+
 func TestFetch_ReportsDuplicatesOnSecondCall(t *testing.T) {
 	// given: a feed already fetched once
 	server := newFetchSampleFeedServer()
