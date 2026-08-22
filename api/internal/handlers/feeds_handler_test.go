@@ -19,6 +19,17 @@ func postJSON(t *testing.T, path, body string) *http.Request {
 	return req
 }
 
+// putJSON builds a PUT request to path with body encoded as JSON, and the
+// {id} path value pre-set - mirroring how the real mux populates it via its
+// "PUT /api/feeds/{id}" pattern.
+func putJSON(t *testing.T, id, body string) *http.Request {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPut, "/api/feeds/"+id, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.SetPathValue("id", id)
+	return req
+}
+
 func TestFeeds_ReturnsAllFeeds(t *testing.T) {
 	// given: two feeds, one of them disabled
 	conn := newTestDB(t)
@@ -192,6 +203,150 @@ func TestCreateFeed_ReturnsConflictForDuplicateURL(t *testing.T) {
 	req := postJSON(t, "/api/feeds", `{"name":"Different Name","url":"https://example.com/feed.xml"}`)
 	rec := httptest.NewRecorder()
 	CreateFeed(conn)(rec, req)
+
+	// then: it responds 409
+	if rec.Code != http.StatusConflict {
+		t.Errorf("expected status 409, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_UpdatesFeedAndReturns200(t *testing.T) {
+	// given: an existing feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Old Name", "https://old.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we PUT a corrected name/url
+	req := putJSON(t, strconv.FormatInt(id, 10), `{"name":"New Name","url":"https://new.example.com/feed.xml"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 200 with the updated feed
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got FeedResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if got.Name != "New Name" || got.URL != "https://new.example.com/feed.xml" {
+		t.Errorf("expected updated name/url in response, got %+v", got)
+	}
+
+	// and: it's actually persisted, not just claimed in the response
+	stored, err := repos.GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("expected feed to still exist: %v", err)
+	}
+	if stored.Name != "New Name" || stored.URL != "https://new.example.com/feed.xml" {
+		t.Errorf("expected persisted name/url to be updated, got %+v", stored)
+	}
+}
+
+func TestUpdateFeed_ReturnsNotFoundForNonexistentID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we PUT an id that doesn't exist
+	req := putJSON(t, "999", `{"name":"New Name","url":"https://example.com/feed.xml"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 404
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_ReturnsBadRequestForInvalidID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we PUT with a non-numeric id
+	req := putJSON(t, "abc", `{"name":"New Name","url":"https://example.com/feed.xml"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_ReturnsBadRequestForMissingName(t *testing.T) {
+	// given: an existing feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Old Name", "https://old.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we PUT with an empty name
+	req := putJSON(t, strconv.FormatInt(id, 10), `{"name":"","url":"https://old.example.com/feed.xml"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_ReturnsBadRequestForMalformedURL(t *testing.T) {
+	// given: an existing feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Old Name", "https://old.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we PUT a url with no scheme/host
+	req := putJSON(t, strconv.FormatInt(id, 10), `{"name":"Old Name","url":"not-a-url"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_ReturnsBadRequestForInvalidJSON(t *testing.T) {
+	// given: an existing feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Old Name", "https://old.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we PUT malformed JSON
+	req := putJSON(t, strconv.FormatInt(id, 10), `{not valid json`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestUpdateFeed_ReturnsConflictWhenURLCollidesWithAnotherFeed(t *testing.T) {
+	// given: two existing feeds
+	conn := newTestDB(t)
+	if _, err := repos.CreateFeed(conn, "Feed A", "https://a.example.com/feed.xml"); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	idB, err := repos.CreateFeed(conn, "Feed B", "https://b.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+
+	// when: we PUT feed B with feed A's url
+	req := putJSON(t, strconv.FormatInt(idB, 10), `{"name":"Feed B","url":"https://a.example.com/feed.xml"}`)
+	rec := httptest.NewRecorder()
+	UpdateFeed(conn)(rec, req)
 
 	// then: it responds 409
 	if rec.Code != http.StatusConflict {

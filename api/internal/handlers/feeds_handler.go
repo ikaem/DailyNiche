@@ -113,6 +113,72 @@ func CreateFeed(conn *sql.DB) http.HandlerFunc {
 	}
 }
 
+// updateFeedRequest is the expected JSON body for PUT /api/feeds/{id}.
+type updateFeedRequest struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+// UpdateFeed returns an http.HandlerFunc for PUT /api/feeds/{id}, backed by
+// conn - lets a wrong name or url entered via CreateFeed be corrected
+// afterwards, rather than needing to delete and re-add the feed.
+func UpdateFeed(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			writeError(w, "invalid feed id", http.StatusBadRequest)
+			return
+		}
+
+		// repos.UpdateFeed itself can't report whether id actually existed (an
+		// UPDATE matching zero rows isn't an error) - check existence via
+		// GetFeed first, same pattern DeleteFeed already uses below.
+		feed, err := repos.GetFeed(conn, id)
+		if err != nil {
+			writeError(w, "feed not found", http.StatusNotFound)
+			return
+		}
+
+		var req updateFeedRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			writeError(w, "name is required", http.StatusBadRequest)
+			return
+		}
+
+		rawURL := strings.TrimSpace(req.URL)
+		if rawURL == "" {
+			writeError(w, "url is required", http.StatusBadRequest)
+			return
+		}
+		parsedURL, err := url.ParseRequestURI(rawURL)
+		if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
+			writeError(w, "url must be a valid absolute URL", http.StatusBadRequest)
+			return
+		}
+
+		feed.Name = name
+		feed.URL = rawURL
+		if err := repos.UpdateFeed(conn, feed); err != nil {
+			if errors.Is(err, repos.ErrDuplicateURL) {
+				writeError(w, "a feed with this url already exists", http.StatusConflict)
+				return
+			}
+			writeError(w, "failed to update feed", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(toFeedResponse(feed))
+	}
+}
+
 // DeleteFeed returns an http.HandlerFunc for DELETE /api/feeds/{id}, backed
 // by conn. Soft-deletes via repos.DeleteFeed - see CLAUDE.md: "Feed
 // Deletion is a Soft Delete".
