@@ -67,6 +67,10 @@ func main() {
 	mux.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
 	mux.HandleFunc("POST /api/feeds/{id}/enable", handlers.EnableFeed(conn))
 	mux.HandleFunc("POST /api/fetch", handlers.Fetch(conn))
+	mux.HandleFunc("POST /api/posts/{id}/favorite", handlers.FavoritePost(conn))
+	mux.HandleFunc("DELETE /api/posts/{id}/favorite", handlers.UnfavoritePost(conn))
+	mux.HandleFunc("POST /api/posts/{id}/read-later", handlers.MarkReadLater(conn))
+	mux.HandleFunc("DELETE /api/posts/{id}/read-later", handlers.UnmarkReadLater(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, middleware.Logging(mux)); err != nil {
