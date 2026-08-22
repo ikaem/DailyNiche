@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	addFeed,
 	deleteFeed,
+	enableFeed,
 	fetchNow,
 	getFeeds,
 	getPostsByDate,
@@ -195,6 +196,33 @@ describe('api', () => {
 				id: 3,
 				name: 'Corrected Blog',
 				url: 'https://example.com/corrected-feed',
+				disabledAt: null
+			});
+		});
+	});
+
+	describe('enableFeed', () => {
+		it('sends a POST request and maps the re-enabled feed', async () => {
+			// given: the API clears disabled_at and returns the updated feed
+			const wireFeed = {
+				id: 3,
+				name: 'Re-enabled Blog',
+				url: 'https://example.com/re-enabled-feed',
+				disabled_at: null,
+				created_at: '2026-07-13T00:00:00Z',
+				updated_at: '2026-08-22T00:00:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse(wireFeed, 200));
+
+			// when: enabling a disabled feed
+			const feed = await enableFeed(3);
+
+			// then: fetch is called with POST against that feed's enable path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/feeds/3/enable`, { method: 'POST' });
+			expect(feed).toEqual({
+				id: 3,
+				name: 'Re-enabled Blog',
+				url: 'https://example.com/re-enabled-feed',
 				disabledAt: null
 			});
 		});
