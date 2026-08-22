@@ -9,6 +9,10 @@ export interface Post {
 	url: string;
 	feedName: string;
 	publishedAt: string;
+	// ISO strings when set (matching Feed.disabledAt's convention), null
+	// for the vast majority of posts which have never been saved.
+	favoritedAt: string | null;
+	readLaterAt: string | null;
 }
 
 // PostModel is what components actually render - fields already shaped

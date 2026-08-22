@@ -27,6 +27,8 @@ interface PostWire {
 	image_url: string;
 	published_at: string;
 	fetched_at: string;
+	favorited_at: string | null;
+	read_later_at: string | null;
 }
 
 interface FeedWire {
@@ -58,7 +60,9 @@ function toPost(wire: PostWire): Post {
 		imageUrl: wire.image_url,
 		url: wire.url,
 		feedName: wire.feed_name,
-		publishedAt: wire.published_at
+		publishedAt: wire.published_at,
+		favoritedAt: wire.favorited_at,
+		readLaterAt: wire.read_later_at
 	};
 }
 

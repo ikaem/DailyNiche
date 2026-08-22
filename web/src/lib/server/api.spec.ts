@@ -40,7 +40,9 @@ describe('api', () => {
 				content_summary: 'The Go team announces the next major version.',
 				image_url: 'https://example.com/go-2-0.jpg',
 				published_at: '2026-07-10T09:00:00Z',
-				fetched_at: '2026-07-10T09:05:00Z'
+				fetched_at: '2026-07-10T09:05:00Z',
+				favorited_at: null,
+				read_later_at: null
 			};
 			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
 
@@ -57,9 +59,36 @@ describe('api', () => {
 					imageUrl: 'https://example.com/go-2-0.jpg',
 					url: 'https://example.com/go-2-0',
 					feedName: 'Tech Blog',
-					publishedAt: '2026-07-10T09:00:00Z'
+					publishedAt: '2026-07-10T09:00:00Z',
+					favoritedAt: null,
+					readLaterAt: null
 				}
 			]);
+		});
+
+		it('maps favorited_at/read_later_at through when a post has been saved', async () => {
+			// given: the API reports a post that's both favorited and read-later
+			const wirePost = {
+				id: 1,
+				feed_id: 2,
+				feed_name: 'Tech Blog',
+				title: 'Go 2.0 Announced',
+				url: 'https://example.com/go-2-0',
+				content_summary: 'The Go team announces the next major version.',
+				image_url: 'https://example.com/go-2-0.jpg',
+				published_at: '2026-07-10T09:00:00Z',
+				fetched_at: '2026-07-10T09:05:00Z',
+				favorited_at: '2026-07-11T08:00:00Z',
+				read_later_at: '2026-07-11T08:01:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting posts for a specific date
+			const posts = await getPostsByDate('2026-07-10');
+
+			// then: both saved-state fields map through as their camelCase names
+			expect(posts[0].favoritedAt).toBe('2026-07-11T08:00:00Z');
+			expect(posts[0].readLaterAt).toBe('2026-07-11T08:01:00Z');
 		});
 	});
 
@@ -75,7 +104,9 @@ describe('api', () => {
 				content_summary: 'A no-fuss guide to your first starter.',
 				image_url: '',
 				published_at: '2026-07-13T11:15:00Z',
-				fetched_at: '2026-07-13T11:20:00Z'
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: null,
+				read_later_at: null
 			};
 			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
 
@@ -94,7 +125,9 @@ describe('api', () => {
 					imageUrl: '',
 					url: 'https://example.com/sourdough',
 					feedName: 'Cooking Blog',
-					publishedAt: '2026-07-13T11:15:00Z'
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: null,
+					readLaterAt: null
 				}
 			]);
 		});

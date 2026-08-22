@@ -47,7 +47,9 @@ describe('+page.server load', () => {
 				imageUrl: '',
 				url: 'https://example.com/go-2-0-announced',
 				feedName: 'Tech Blog',
-				publishedAt: '2026-07-10T09:00:00Z'
+				publishedAt: '2026-07-10T09:00:00Z',
+				favoritedAt: null,
+				readLaterAt: null
 			}
 		];
 		getPostsToday.mockResolvedValue(posts);
@@ -81,7 +83,9 @@ describe('+page.server load', () => {
 				imageUrl: '',
 				url: 'https://example.com/archived-post',
 				feedName: 'Tech Blog',
-				publishedAt: '2026-07-09T09:00:00Z'
+				publishedAt: '2026-07-09T09:00:00Z',
+				favoritedAt: null,
+				readLaterAt: null
 			}
 		];
 		getPostsByDate.mockResolvedValue(posts);

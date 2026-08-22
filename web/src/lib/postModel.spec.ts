@@ -12,7 +12,9 @@ describe('toPostModel', () => {
 			imageUrl: 'https://example.com/image.jpg',
 			url: 'https://example.com/post',
 			feedName: 'Tech Blog',
-			publishedAt: '2026-07-08T17:45:56.319884647Z'
+			publishedAt: '2026-07-08T17:45:56.319884647Z',
+			favoritedAt: null,
+			readLaterAt: null
 		};
 
 		// when: we map it to a PostModel
