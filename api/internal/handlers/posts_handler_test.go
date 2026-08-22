@@ -150,6 +150,50 @@ func TestPosts_ReturnsPostsForToday(t *testing.T) {
 	}
 }
 
+func TestPosts_IncludesSavedState(t *testing.T) {
+	// given: a favorited post and an untouched post, both fetched today
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	favoritedID, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:favorited-post", time.Now().UTC()))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := repos.FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:untouched-post", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: the favorited post's favorited_at is set, and read_later_at
+	// stays nil for both posts
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 posts, got %d", len(got))
+	}
+	byID := make(map[int64]PostResponse, len(got))
+	for _, p := range got {
+		byID[p.ID] = p
+	}
+	if byID[favoritedID].FavoritedAt == nil {
+		t.Error("expected the favorited post's favorited_at to be set")
+	}
+	if byID[favoritedID].ReadLaterAt != nil {
+		t.Error("expected the favorited post's read_later_at to remain nil")
+	}
+}
+
 func TestPosts_SubstitutesPlaceholderWhenPostHasNoImage(t *testing.T) {
 	// given: a post with no image url (newTestPost leaves ImageURL empty)
 	conn := newTestDB(t)

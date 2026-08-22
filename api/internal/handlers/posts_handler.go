@@ -17,15 +17,17 @@ import (
 // numeric ID for filtering (feed_id query param) or any future per-feed
 // features.
 type PostResponse struct {
-	ID             int64     `json:"id"`
-	FeedID         int64     `json:"feed_id"`
-	FeedName       string    `json:"feed_name"`
-	Title          string    `json:"title"`
-	URL            string    `json:"url"`
-	ContentSummary string    `json:"content_summary"`
-	ImageURL       string    `json:"image_url"`
-	PublishedAt    time.Time `json:"published_at"`
-	FetchedAt      time.Time `json:"fetched_at"`
+	ID             int64      `json:"id"`
+	FeedID         int64      `json:"feed_id"`
+	FeedName       string     `json:"feed_name"`
+	Title          string     `json:"title"`
+	URL            string     `json:"url"`
+	ContentSummary string     `json:"content_summary"`
+	ImageURL       string     `json:"image_url"`
+	PublishedAt    time.Time  `json:"published_at"`
+	FetchedAt      time.Time  `json:"fetched_at"`
+	FavoritedAt    *time.Time `json:"favorited_at"`
+	ReadLaterAt    *time.Time `json:"read_later_at"`
 }
 
 // placeholderImageSVG is a generic "no image" glyph (a photo icon: a sun and
@@ -109,6 +111,8 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 				ImageURL:       imageURLOrPlaceholder(p.ImageURL),
 				PublishedAt:    p.PublishedAt,
 				FetchedAt:      p.FetchedAt,
+				FavoritedAt:    p.FavoritedAt,
+				ReadLaterAt:    p.ReadLaterAt,
 			})
 		}
 
