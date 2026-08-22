@@ -58,6 +58,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handlers.Health)
 	mux.HandleFunc("/api/posts", handlers.Posts(conn))
+	mux.HandleFunc("GET /api/posts/favorites", handlers.FavoritedPosts(conn))
+	mux.HandleFunc("GET /api/posts/read-later", handlers.ReadLaterPosts(conn))
 	// GET and POST share the same literal path, so both need an explicit
 	// method prefix - registering the same bare "/api/feeds" pattern twice
 	// would panic at startup.
