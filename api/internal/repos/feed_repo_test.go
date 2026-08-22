@@ -211,6 +211,32 @@ func TestUpdateFeed_ReturnsErrDuplicateURLWhenURLCollidesWithAnotherFeed(t *test
 	}
 }
 
+func TestEnableFeed_ClearsDisabledAt(t *testing.T) {
+	// given: a created and then disabled feed
+	conn := newTestDB(t)
+	id, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if err := DeleteFeed(conn, id); err != nil {
+		t.Fatalf("DeleteFeed() returned error: %v", err)
+	}
+
+	// when: we enable it again
+	if err := EnableFeed(conn, id); err != nil {
+		t.Fatalf("EnableFeed() returned error: %v", err)
+	}
+
+	// then: disabled_at is cleared
+	f, err := GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("GetFeed() returned error: %v", err)
+	}
+	if f.DisabledAt != nil {
+		t.Errorf("expected DisabledAt to be nil after EnableFeed, got %v", f.DisabledAt)
+	}
+}
+
 func TestDeleteFeed_SoftDeletesWithoutRemovingRow(t *testing.T) {
 	// given: a created feed
 	conn := newTestDB(t)

@@ -116,6 +116,16 @@ func UpdateFeed(conn *sql.DB, feed *models.Feed) error {
 	return nil
 }
 
+// EnableFeed reverses DeleteFeed's soft-delete by clearing disabled_at, so
+// the fetcher picks the feed back up on its next run.
+func EnableFeed(conn *sql.DB, id int64) error {
+	_, err := conn.Exec(
+		`UPDATE feeds SET disabled_at = NULL, updated_at = ? WHERE id = ?`,
+		time.Now().UTC(), id,
+	)
+	return err
+}
+
 // DeleteFeed soft-deletes a feed by setting disabled_at rather than removing
 // the row - past posts must keep resolving feed_id so archived issues never
 // change (see CLAUDE.md: "Feed Deletion is a Soft Delete").
