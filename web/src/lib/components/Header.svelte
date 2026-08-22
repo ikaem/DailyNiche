@@ -7,6 +7,7 @@
 	// absolute) - path is kept separately, just for that comparison.
 	const links = [
 		{ path: '/', href: resolve('/'), label: 'Home' },
+		{ path: '/saved', href: resolve('/saved'), label: 'Saved' },
 		{ path: '/dashboard', href: resolve('/dashboard'), label: 'Dashboard' }
 	];
 </script>
