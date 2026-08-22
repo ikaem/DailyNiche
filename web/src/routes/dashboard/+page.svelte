@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import FeedRow from '$lib/components/FeedRow.svelte';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
@@ -73,16 +74,7 @@
 		<section>
 			<h2>Active Feeds ({activeFeeds.length})</h2>
 			{#each activeFeeds as feed (feed.id)}
-				<div class="feed-row">
-					<div class="feed-info">
-						<span class="feed-name">{feed.name}</span>
-						<span class="feed-url">{feed.url}</span>
-					</div>
-					<form method="POST" action="?/deleteFeed" use:enhance>
-						<input type="hidden" name="id" value={feed.id} />
-						<button type="submit" class="delete">Delete</button>
-					</form>
-				</div>
+				<FeedRow {feed} />
 			{/each}
 		</section>
 
@@ -90,16 +82,7 @@
 			<section>
 				<h2>Disabled Feeds ({disabledFeeds.length})</h2>
 				{#each disabledFeeds as feed (feed.id)}
-					<div class="feed-row">
-						<div class="feed-info">
-							<span class="feed-name">{feed.name}</span>
-							<span class="feed-url">{feed.url}</span>
-						</div>
-						<!-- Not wired to anything yet - repos.EnableFeed doesn't exist,
-						     see the Task 7.4 TODO in CLAUDE.md. Looks and behaves like a
-						     real button, just does nothing when clicked. -->
-						<button type="button" class="enable">Enable</button>
-					</div>
+					<FeedRow {feed} />
 				{/each}
 			</section>
 		{/if}
@@ -211,68 +194,12 @@
 		opacity: 0.92;
 	}
 
-	.feed-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 1rem;
-		padding: 0.85rem 0;
-		border-bottom: 1px solid var(--line);
-	}
-	.feed-row:last-child {
-		border-bottom: none;
-	}
-	.feed-row .feed-info {
-		min-width: 0;
-	}
-	.feed-row .feed-name {
-		font-weight: 600;
-		font-size: 0.95rem;
-	}
-	.feed-row .feed-url {
-		font-size: 0.8rem;
-		color: var(--ink-soft);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		display: block;
-	}
-	.feed-row button {
-		flex-shrink: 0;
-		background: none;
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		padding: 0.4rem 0.9rem;
-		font-family: inherit;
-		font-size: 0.82rem;
-		font-weight: 500;
-		cursor: pointer;
-		color: var(--ink);
-	}
-	.feed-row button.delete {
-		color: var(--accent);
-		border-color: var(--accent-soft);
-	}
-	.feed-row button.delete:hover {
-		background: var(--accent-soft);
-	}
-	.feed-row button.enable:hover {
-		background: var(--paper);
-	}
-
 	@media (max-width: 640px) {
 		main {
 			padding: 1.5rem 1.25rem 3rem;
 		}
 		main > h1 {
 			font-size: 1.5rem;
-		}
-
-		.feed-row {
-			flex-wrap: wrap;
-		}
-		.feed-row .feed-info {
-			flex: 1 1 100%;
 		}
 	}
 </style>
