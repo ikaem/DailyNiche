@@ -17,6 +17,10 @@ export interface Post {
 
 // PostModel is what components actually render - fields already shaped
 // for display. Built from a Post via toPostModel() (see postModel.ts).
+// isFavorited/isReadLater are plain booleans, not the raw timestamps Post
+// carries - components only ever need to know whether to show a badge, not
+// when it was saved, so the null-check happens once here rather than in
+// every component that renders one.
 export interface PostModel {
 	id: number;
 	title: string;
@@ -25,6 +29,8 @@ export interface PostModel {
 	url: string;
 	feedName: string;
 	publishedAtDisplay: string;
+	isFavorited: boolean;
+	isReadLater: boolean;
 }
 
 // Feed matches exactly what the API client delivers for a feed - raw,
