@@ -33,6 +33,14 @@ export interface PostModel {
 	isReadLater: boolean;
 }
 
+// SavedState is what the favorite/read-later toggle endpoints return -
+// just the two fields that changed, not a full Post (the caller already
+// has the rest of the post rendered).
+export interface SavedState {
+	favoritedAt: string | null;
+	readLaterAt: string | null;
+}
+
 // Feed matches exactly what the API client delivers for a feed - raw,
 // unformatted. disabledAt is an ISO string when the feed has been removed
 // (soft delete - see CLAUDE.md), null when active.

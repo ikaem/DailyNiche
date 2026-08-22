@@ -4,10 +4,14 @@ import {
 	addFeed,
 	deleteFeed,
 	enableFeed,
+	favoritePost,
 	fetchNow,
 	getFeeds,
 	getPostsByDate,
 	getPostsToday,
+	markReadLater,
+	unfavoritePost,
+	unmarkReadLater,
 	updateFeed
 } from './api';
 
@@ -296,7 +300,9 @@ describe('api', () => {
 					new: 0,
 					duplicates: 0,
 					errors: 1,
-					failed_feeds: [{ feed_name: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }]
+					failed_feeds: [
+						{ feed_name: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }
+					]
 				})
 			);
 
@@ -307,6 +313,68 @@ describe('api', () => {
 			expect(summary.failedFeeds).toEqual([
 				{ feedName: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }
 			]);
+		});
+	});
+
+	describe('favoritePost', () => {
+		it('sends a POST request and maps the returned saved state', async () => {
+			// given: the API favorites the post and returns its saved state
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ favorited_at: '2026-08-22T09:00:00Z', read_later_at: null })
+			);
+
+			// when: favoriting a post
+			const state = await favoritePost(3);
+
+			// then: fetch is called with POST against that post's favorite path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/favorite`, { method: 'POST' });
+			expect(state).toEqual({ favoritedAt: '2026-08-22T09:00:00Z', readLaterAt: null });
+		});
+	});
+
+	describe('unfavoritePost', () => {
+		it('sends a DELETE request and maps the returned saved state', async () => {
+			// given: the API unfavorites the post
+			vi.mocked(fetch).mockResolvedValue(mockResponse({ favorited_at: null, read_later_at: null }));
+
+			// when: unfavoriting a post
+			const state = await unfavoritePost(3);
+
+			// then: fetch is called with DELETE against that post's favorite path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/favorite`, { method: 'DELETE' });
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: null });
+		});
+	});
+
+	describe('markReadLater', () => {
+		it('sends a POST request and maps the returned saved state', async () => {
+			// given: the API marks the post read-later
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ favorited_at: null, read_later_at: '2026-08-22T09:01:00Z' })
+			);
+
+			// when: marking a post read-later
+			const state = await markReadLater(3);
+
+			// then: fetch is called with POST against that post's read-later path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/read-later`, { method: 'POST' });
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: '2026-08-22T09:01:00Z' });
+		});
+	});
+
+	describe('unmarkReadLater', () => {
+		it('sends a DELETE request and maps the returned saved state', async () => {
+			// given: the API unmarks the post
+			vi.mocked(fetch).mockResolvedValue(mockResponse({ favorited_at: null, read_later_at: null }));
+
+			// when: unmarking a post's read-later state
+			const state = await unmarkReadLater(3);
+
+			// then: fetch is called with DELETE against that post's read-later path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/read-later`, {
+				method: 'DELETE'
+			});
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: null });
 		});
 	});
 
