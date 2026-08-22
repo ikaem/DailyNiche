@@ -65,6 +65,7 @@ func main() {
 	mux.HandleFunc("POST /api/feeds", handlers.CreateFeed(conn))
 	mux.HandleFunc("PUT /api/feeds/{id}", handlers.UpdateFeed(conn))
 	mux.HandleFunc("DELETE /api/feeds/{id}", handlers.DeleteFeed(conn))
+	mux.HandleFunc("POST /api/feeds/{id}/enable", handlers.EnableFeed(conn))
 	mux.HandleFunc("POST /api/fetch", handlers.Fetch(conn))
 
 	log.Printf("DailyNiche API server listening on :%s", port)

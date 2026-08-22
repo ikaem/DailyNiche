@@ -179,6 +179,41 @@ func UpdateFeed(conn *sql.DB) http.HandlerFunc {
 	}
 }
 
+// EnableFeed returns an http.HandlerFunc for POST /api/feeds/{id}/enable,
+// backed by conn - reverses DeleteFeed's soft-delete.
+func EnableFeed(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			writeError(w, "invalid feed id", http.StatusBadRequest)
+			return
+		}
+
+		// repos.EnableFeed itself can't report whether id actually existed
+		// (an UPDATE matching zero rows isn't an error) - check existence via
+		// GetFeed first, same pattern DeleteFeed/UpdateFeed already use.
+		if _, err := repos.GetFeed(conn, id); err != nil {
+			writeError(w, "feed not found", http.StatusNotFound)
+			return
+		}
+
+		if err := repos.EnableFeed(conn, id); err != nil {
+			writeError(w, "failed to enable feed", http.StatusInternalServerError)
+			return
+		}
+
+		feed, err := repos.GetFeed(conn, id)
+		if err != nil {
+			writeError(w, "failed to load enabled feed", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(toFeedResponse(feed))
+	}
+}
+
 // DeleteFeed returns an http.HandlerFunc for DELETE /api/feeds/{id}, backed
 // by conn. Soft-deletes via repos.DeleteFeed - see CLAUDE.md: "Feed
 // Deletion is a Soft Delete".

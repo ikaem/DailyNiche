@@ -354,6 +354,77 @@ func TestUpdateFeed_ReturnsConflictWhenURLCollidesWithAnotherFeed(t *testing.T) 
 	}
 }
 
+func TestEnableFeed_ClearsDisabledAtAndReturns200(t *testing.T) {
+	// given: a disabled feed
+	conn := newTestDB(t)
+	id, err := repos.CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	if err := repos.DeleteFeed(conn, id); err != nil {
+		t.Fatalf("DeleteFeed() returned error: %v", err)
+	}
+
+	// when: we POST to enable it
+	req := httptest.NewRequest(http.MethodPost, "/api/feeds/"+strconv.FormatInt(id, 10)+"/enable", nil)
+	req.SetPathValue("id", strconv.FormatInt(id, 10))
+	rec := httptest.NewRecorder()
+	EnableFeed(conn)(rec, req)
+
+	// then: it responds 200 with disabled_at cleared
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var got FeedResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if got.DisabledAt != nil {
+		t.Errorf("expected disabled_at to be nil in response, got %v", got.DisabledAt)
+	}
+
+	// and: it's actually persisted, not just claimed in the response
+	stored, err := repos.GetFeed(conn, id)
+	if err != nil {
+		t.Fatalf("expected feed to still exist: %v", err)
+	}
+	if stored.DisabledAt != nil {
+		t.Errorf("expected persisted disabled_at to be nil, got %v", stored.DisabledAt)
+	}
+}
+
+func TestEnableFeed_ReturnsNotFoundForNonexistentID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we POST to enable an id that doesn't exist
+	req := httptest.NewRequest(http.MethodPost, "/api/feeds/999/enable", nil)
+	req.SetPathValue("id", "999")
+	rec := httptest.NewRecorder()
+	EnableFeed(conn)(rec, req)
+
+	// then: it responds 404
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestEnableFeed_ReturnsBadRequestForInvalidID(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we POST to enable with a non-numeric id
+	req := httptest.NewRequest(http.MethodPost, "/api/feeds/abc/enable", nil)
+	req.SetPathValue("id", "abc")
+	rec := httptest.NewRecorder()
+	EnableFeed(conn)(rec, req)
+
+	// then: it responds 400
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
 func TestDeleteFeed_SoftDeletesAndReturns204(t *testing.T) {
 	// given: an existing feed
 	conn := newTestDB(t)
