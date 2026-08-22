@@ -1,5 +1,5 @@
 import { fail } from '@sveltejs/kit';
-import { addFeed, ApiError, deleteFeed, fetchNow, getFeeds } from '$lib/server/api';
+import { addFeed, ApiError, deleteFeed, fetchNow, getFeeds, updateFeed } from '$lib/server/api';
 import type { FetchSummary } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -57,6 +57,39 @@ export const actions: Actions = {
 				return fail(err.status, { message: err.message });
 			}
 			return fail(500, { message: 'Failed to add feed' });
+		}
+	},
+
+	// Lets a wrong name or url entered via addFeed be corrected afterwards,
+	// rather than needing to delete and re-add the feed. Same validation
+	// shape as addFeed, plus deleteFeed's id check, since this needs both.
+	editFeed: async ({ request }) => {
+		const formData = await request.formData();
+		const rawId = String(formData.get('id') ?? '');
+		const id = Number(rawId);
+		const name = String(formData.get('name') ?? '').trim();
+		const url = String(formData.get('url') ?? '').trim();
+
+		if (!rawId || Number.isNaN(id)) {
+			return fail(400, { message: 'a valid feed id is required' });
+		}
+		if (!name) {
+			return fail(400, { message: 'name is required' });
+		}
+		if (!url) {
+			return fail(400, { message: 'url is required' });
+		}
+		if (!isValidAbsoluteUrl(url)) {
+			return fail(400, { message: 'url must be a valid absolute URL' });
+		}
+
+		try {
+			await updateFeed(id, name, url);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to update feed' });
 		}
 	},
 

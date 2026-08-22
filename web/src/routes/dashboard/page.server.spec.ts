@@ -6,15 +6,16 @@ import { ApiError } from '$lib/server/api';
 // paired like this. ApiError is spread through from the real module (via
 // vi.importActual) rather than faked, so `instanceof ApiError` inside the
 // action still works correctly against errors thrown in these tests.
-const { getFeeds, addFeed, deleteFeed, fetchNow } = vi.hoisted(() => ({
+const { getFeeds, addFeed, updateFeed, deleteFeed, fetchNow } = vi.hoisted(() => ({
 	getFeeds: vi.fn(),
 	addFeed: vi.fn(),
+	updateFeed: vi.fn(),
 	deleteFeed: vi.fn(),
 	fetchNow: vi.fn()
 }));
 vi.mock('$lib/server/api', async () => {
 	const actual = await vi.importActual<typeof import('$lib/server/api')>('$lib/server/api');
-	return { ...actual, getFeeds, addFeed, deleteFeed, fetchNow };
+	return { ...actual, getFeeds, addFeed, updateFeed, deleteFeed, fetchNow };
 });
 
 import { actions, load } from './+page.server';
@@ -22,6 +23,7 @@ import { actions, load } from './+page.server';
 beforeEach(() => {
 	getFeeds.mockReset();
 	addFeed.mockReset();
+	updateFeed.mockReset();
 	deleteFeed.mockReset();
 	fetchNow.mockReset();
 });
@@ -150,6 +152,125 @@ describe('dashboard actions.addFeed', () => {
 
 		// then: it falls back to a generic 500 message
 		expect(result).toEqual({ status: 500, data: { message: 'Failed to add feed' } });
+	});
+});
+
+describe('dashboard actions.editFeed', () => {
+	it('trims and forwards the id/name/url, returning nothing on success', async () => {
+		// given: updateFeed resolves, and the submitted fields have stray whitespace
+		updateFeed.mockResolvedValue({
+			id: 3,
+			name: 'Fixed Blog',
+			url: 'https://example.com/fixed-feed',
+			disabledAt: null
+		});
+		const request = formDataRequest({
+			id: '3',
+			name: '  Fixed Blog  ',
+			url: '  https://example.com/fixed-feed  '
+		});
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: updateFeed is called with the numeric id and trimmed name/url
+		expect(updateFeed).toHaveBeenCalledWith(3, 'Fixed Blog', 'https://example.com/fixed-feed');
+		expect(result).toBeUndefined();
+	});
+
+	it('fails with 400 and does not call updateFeed when id is missing', async () => {
+		// given: a submission with no id
+		const request = formDataRequest({ name: 'Fixed Blog', url: 'https://example.com/fixed-feed' });
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it fails validation before ever calling updateFeed
+		expect(result).toEqual({ status: 400, data: { message: 'a valid feed id is required' } });
+		expect(updateFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with 400 and does not call updateFeed when id is not numeric', async () => {
+		// given: a submission with a non-numeric id
+		const request = formDataRequest({
+			id: 'abc',
+			name: 'Fixed Blog',
+			url: 'https://example.com/fixed-feed'
+		});
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it fails validation before ever calling updateFeed
+		expect(result).toEqual({ status: 400, data: { message: 'a valid feed id is required' } });
+		expect(updateFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with 400 and does not call updateFeed when name is missing', async () => {
+		// given: a submission with no name
+		const request = formDataRequest({ id: '3', name: '', url: 'https://example.com/fixed-feed' });
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it fails validation before ever calling updateFeed
+		expect(result).toEqual({ status: 400, data: { message: 'name is required' } });
+		expect(updateFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with 400 and does not call updateFeed when url is missing', async () => {
+		// given: a submission with no url
+		const request = formDataRequest({ id: '3', name: 'Fixed Blog', url: '' });
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it fails validation before ever calling updateFeed
+		expect(result).toEqual({ status: 400, data: { message: 'url is required' } });
+		expect(updateFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with 400 and does not call updateFeed when url is not a valid absolute URL', async () => {
+		// given: a submission with a malformed url
+		const request = formDataRequest({ id: '3', name: 'Fixed Blog', url: 'not-a-url' });
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it fails validation before ever calling updateFeed
+		expect(result).toEqual({ status: 400, data: { message: 'url must be a valid absolute URL' } });
+		expect(updateFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with the ApiError status and message when the Go API rejects the edit', async () => {
+		// given: updateFeed rejects with an ApiError (e.g. duplicate URL, 409)
+		updateFeed.mockRejectedValue(new ApiError('a feed with this url already exists', 409));
+		const request = formDataRequest({ id: '3', name: 'Dup', url: 'https://example.com/dup' });
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it returns the same status and message as the ApiError
+		expect(result).toEqual({
+			status: 409,
+			data: { message: 'a feed with this url already exists' }
+		});
+	});
+
+	it('fails with 500 when updateFeed throws a non-ApiError error', async () => {
+		// given: updateFeed rejects with an unexpected error
+		updateFeed.mockRejectedValue(new Error('connection reset'));
+		const request = formDataRequest({
+			id: '3',
+			name: 'Fixed Blog',
+			url: 'https://example.com/fixed-feed'
+		});
+
+		// when: the action runs
+		const result = await actions.editFeed({ request } as Parameters<typeof actions.editFeed>[0]);
+
+		// then: it falls back to a generic 500 message
+		expect(result).toEqual({ status: 500, data: { message: 'Failed to update feed' } });
 	});
 });
 
