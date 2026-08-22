@@ -1,5 +1,14 @@
-import { getPostsByDate, getPostsToday } from '$lib/server/api';
-import type { PageServerLoad } from './$types';
+import { fail } from '@sveltejs/kit';
+import {
+	ApiError,
+	favoritePost,
+	getPostsByDate,
+	getPostsToday,
+	markReadLater,
+	unfavoritePost,
+	unmarkReadLater
+} from '$lib/server/api';
+import type { Actions, PageServerLoad } from './$types';
 
 // Today's date in UTC as YYYY-MM-DD, matching this app's established
 // UTC-everywhere convention (see CLAUDE.md's Timestamps & Timezones note) -
@@ -30,5 +39,83 @@ export const load: PageServerLoad = async ({ url }) => {
 			error: err instanceof Error ? err.message : 'Failed to load posts',
 			date
 		};
+	}
+};
+
+// Shared by all four actions below - a local, private helper (not exported
+// or shared across routes) since all four need identical id parsing,
+// matching how the dashboard's own actions validate a form field inline.
+function parsePostId(formData: FormData): number | null {
+	const raw = String(formData.get('id') ?? '');
+	const id = Number(raw);
+	if (!raw || Number.isNaN(id)) {
+		return null;
+	}
+	return id;
+}
+
+export const actions: Actions = {
+	// All four return nothing on success - use:enhance's default behavior
+	// already calls invalidateAll() for any successful result, which reruns
+	// load() and reflects the new saved state, same pattern the dashboard's
+	// addFeed/deleteFeed/etc. actions already use.
+	favoritePost: async ({ request }) => {
+		const id = parsePostId(await request.formData());
+		if (id === null) {
+			return fail(400, { message: 'a valid post id is required' });
+		}
+		try {
+			await favoritePost(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to favorite post' });
+		}
+	},
+
+	unfavoritePost: async ({ request }) => {
+		const id = parsePostId(await request.formData());
+		if (id === null) {
+			return fail(400, { message: 'a valid post id is required' });
+		}
+		try {
+			await unfavoritePost(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to unfavorite post' });
+		}
+	},
+
+	markReadLater: async ({ request }) => {
+		const id = parsePostId(await request.formData());
+		if (id === null) {
+			return fail(400, { message: 'a valid post id is required' });
+		}
+		try {
+			await markReadLater(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to mark post read later' });
+		}
+	},
+
+	unmarkReadLater: async ({ request }) => {
+		const id = parsePostId(await request.formData());
+		if (id === null) {
+			return fail(400, { message: 'a valid post id is required' });
+		}
+		try {
+			await unmarkReadLater(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to unmark post read later' });
+		}
 	}
 };
