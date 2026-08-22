@@ -3,6 +3,8 @@ package repos
 import (
 	"testing"
 	"time"
+
+	"github.com/karlo/dailyniche/internal/models"
 )
 
 func TestCreatePost_InsertsNewPost(t *testing.T) {
@@ -156,6 +158,74 @@ func TestListPostsByDate_ReturnsEmptySliceWhenNoneMatch(t *testing.T) {
 	// then: it returns an empty slice, not an error
 	if len(posts) != 0 {
 		t.Errorf("expected 0 posts, got %d", len(posts))
+	}
+}
+
+func TestListPostsByDate_PopulatesSavedState(t *testing.T) {
+	// given: three posts fetched the same day - one favorited, one
+	// read-later, one untouched
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	fetchedAt := time.Date(2024, 3, 15, 9, 0, 0, 0, time.UTC)
+
+	favoritedPost := newTestPost(feedID, "urn:uuid:favorited")
+	favoritedPost.FetchedAt = fetchedAt
+	favoritedID, err := CreatePost(conn, favoritedPost)
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+
+	readLaterPost := newTestPost(feedID, "urn:uuid:read-later")
+	readLaterPost.FetchedAt = fetchedAt
+	readLaterID, err := CreatePost(conn, readLaterPost)
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := MarkReadLater(conn, readLaterID); err != nil {
+		t.Fatalf("MarkReadLater() returned error: %v", err)
+	}
+
+	untouchedPost := newTestPost(feedID, "urn:uuid:untouched")
+	untouchedPost.FetchedAt = fetchedAt
+	if _, err := CreatePost(conn, untouchedPost); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we list posts for that day
+	posts, err := ListPostsByDate(conn, fetchedAt)
+	if err != nil {
+		t.Fatalf("ListPostsByDate() returned error: %v", err)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("expected 3 posts, got %d", len(posts))
+	}
+
+	byGUID := make(map[string]models.Post, len(posts))
+	for _, p := range posts {
+		byGUID[p.GUID] = p
+	}
+
+	// then: each post's saved state is populated (or nil) correctly
+	if byGUID["urn:uuid:favorited"].FavoritedAt == nil {
+		t.Error("expected the favorited post's FavoritedAt to be set")
+	}
+	if byGUID["urn:uuid:favorited"].ReadLaterAt != nil {
+		t.Error("expected the favorited post's ReadLaterAt to remain nil")
+	}
+	if byGUID["urn:uuid:read-later"].ReadLaterAt == nil {
+		t.Error("expected the read-later post's ReadLaterAt to be set")
+	}
+	if byGUID["urn:uuid:read-later"].FavoritedAt != nil {
+		t.Error("expected the read-later post's FavoritedAt to remain nil")
+	}
+	if byGUID["urn:uuid:untouched"].FavoritedAt != nil || byGUID["urn:uuid:untouched"].ReadLaterAt != nil {
+		t.Error("expected the untouched post's saved state to be nil")
 	}
 }
 

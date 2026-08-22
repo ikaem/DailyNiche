@@ -22,6 +22,11 @@ type Post struct {
 	FetchedAt      time.Time
 	GUID           string
 	CreatedAt      time.Time
+	// FavoritedAt/ReadLaterAt mirror SavedPost's columns, populated via a
+	// LEFT JOIN against saved_posts (see ListPostsByDate) - nil for the
+	// vast majority of posts, which have no saved_posts row at all.
+	FavoritedAt *time.Time
+	ReadLaterAt *time.Time
 }
 
 // SavedPost is a post's favorite/read-later state - a 1:1 extension of
