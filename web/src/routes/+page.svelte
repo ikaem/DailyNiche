@@ -3,9 +3,9 @@
 	import DateNav from '$lib/components/DateNav.svelte';
 	import AboveTheFold from '$lib/components/AboveTheFold.svelte';
 	import BelowTheFold from '$lib/components/BelowTheFold.svelte';
-	import type { PageData } from './$types';
+	import type { ActionData, PageData } from './$types';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
 
 	let posts = $derived(data.posts.map(toPostModel));
 </script>
@@ -16,6 +16,9 @@
 	{#if data.error}
 		<p class="status status-error">{data.error}</p>
 	{:else}
+		{#if form?.message}
+			<p class="status status-error">{form.message}</p>
+		{/if}
 		<div class="grid-12">
 			<AboveTheFold {posts} />
 			<BelowTheFold {posts} />
