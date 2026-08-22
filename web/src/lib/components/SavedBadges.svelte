@@ -5,18 +5,25 @@
 	the default (unset) matches PostMedium/PostListItem's smaller one.
 	Renders nothing at all when neither state is set.
 
-	Positioning is left to the parent: this component's own root is
-	`position: absolute`, so the parent card needs `position: relative`
-	on its own top-level element (already true for PostHero/PostMedium).
+	overlay (default true) floats the badges via `position: absolute` in
+	the parent's top-right corner - the parent needs `position: relative`
+	on its own top-level element for this (true for PostHero/PostMedium,
+	which both have a large image to float over). PostListItem has no such
+	image, so it passes overlay={false} to get a plain inline flex item
+	instead, placed wherever the parent's own layout puts it.
 -->
 <script lang="ts">
 	import type { PostModel } from '$lib/types';
 
-	let { post, size = 'md' }: { post: PostModel; size?: 'lg' | 'md' } = $props();
+	let {
+		post,
+		size = 'md',
+		overlay = true
+	}: { post: PostModel; size?: 'lg' | 'md'; overlay?: boolean } = $props();
 </script>
 
 {#if post.isFavorited || post.isReadLater}
-	<div class="badges" class:lg={size === 'lg'}>
+	<div class="badges" class:lg={size === 'lg'} class:overlay>
 		{#if post.isFavorited}
 			<span class="badge" title="Favorited">
 				<svg viewBox="0 0 24 24" fill="currentColor"
@@ -38,14 +45,17 @@
 
 <style>
 	.badges {
+		display: flex;
+		gap: 0.35rem;
+		flex-shrink: 0;
+	}
+	.badges.overlay {
 		position: absolute;
 		top: 0.6rem;
 		right: 0.6rem;
 		z-index: 2;
-		display: flex;
-		gap: 0.35rem;
 	}
-	.badges.lg {
+	.badges.overlay.lg {
 		top: 0.75rem;
 		right: 0.75rem;
 		gap: 0.4rem;
