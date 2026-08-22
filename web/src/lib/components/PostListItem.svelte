@@ -44,6 +44,17 @@
 		border-radius: 8px;
 		flex-shrink: 0;
 	}
+	.list-post-text {
+		/* Without this, a flex item shrinks to fit its own content by
+		   default, so SavedBadges (the next flex item) would hug wherever
+		   the text happens to end instead of sitting at the row's right
+		   edge. flex: 1 makes this fill the remaining space instead;
+		   min-width: 0 overrides flex's own default min-width: auto, which
+		   would otherwise stop the description from wrapping/truncating
+		   within that now-constrained width. */
+		flex: 1;
+		min-width: 0;
+	}
 	.list-post .kicker {
 		display: inline-block;
 		font-size: 0.7rem;
