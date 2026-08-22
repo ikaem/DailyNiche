@@ -296,6 +296,161 @@ func TestListPostsByDate_PopulatesSavedState(t *testing.T) {
 	}
 }
 
+func TestListFavoritedPosts_ReturnsOnlyFavoritedPosts(t *testing.T) {
+	// given: one favorited post, one read-later-only post, one untouched post
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	favoritedID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:list-favorited"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+	readLaterID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:list-read-later-only"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := MarkReadLater(conn, readLaterID); err != nil {
+		t.Fatalf("MarkReadLater() returned error: %v", err)
+	}
+	if _, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:list-untouched")); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we list favorited posts
+	posts, err := ListFavoritedPosts(conn)
+	if err != nil {
+		t.Fatalf("ListFavoritedPosts() returned error: %v", err)
+	}
+
+	// then: only the favorited post is returned
+	if len(posts) != 1 {
+		t.Fatalf("expected 1 favorited post, got %d", len(posts))
+	}
+	if posts[0].ID != favoritedID {
+		t.Errorf("expected post %d, got %d", favoritedID, posts[0].ID)
+	}
+}
+
+func TestListFavoritedPosts_OrdersMostRecentlyFavoritedFirst(t *testing.T) {
+	// given: two favorited posts, favorited at explicit, distinct times
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	olderID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:favorited-older"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	newerID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:favorited-newer"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	// Inserted directly (bypassing FavoritePost's time.Now()) for
+	// deterministic control over ordering.
+	if _, err := conn.Exec(
+		`INSERT INTO saved_posts (post_id, favorited_at) VALUES (?, ?), (?, ?)`,
+		olderID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		newerID, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("failed to seed saved_posts: %v", err)
+	}
+
+	// when: we list favorited posts
+	posts, err := ListFavoritedPosts(conn)
+	if err != nil {
+		t.Fatalf("ListFavoritedPosts() returned error: %v", err)
+	}
+
+	// then: the more recently favorited post comes first
+	if len(posts) != 2 {
+		t.Fatalf("expected 2 favorited posts, got %d", len(posts))
+	}
+	if posts[0].ID != newerID || posts[1].ID != olderID {
+		t.Errorf("expected order [%d, %d], got [%d, %d]", newerID, olderID, posts[0].ID, posts[1].ID)
+	}
+}
+
+func TestListReadLaterPosts_ReturnsOnlyReadLaterPosts(t *testing.T) {
+	// given: one read-later post, one favorited-only post
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	readLaterID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-read-later"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := MarkReadLater(conn, readLaterID); err != nil {
+		t.Fatalf("MarkReadLater() returned error: %v", err)
+	}
+	favoritedID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-favorited-only"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+
+	// when: we list read-later posts
+	posts, err := ListReadLaterPosts(conn)
+	if err != nil {
+		t.Fatalf("ListReadLaterPosts() returned error: %v", err)
+	}
+
+	// then: only the read-later post is returned
+	if len(posts) != 1 {
+		t.Fatalf("expected 1 read-later post, got %d", len(posts))
+	}
+	if posts[0].ID != readLaterID {
+		t.Errorf("expected post %d, got %d", readLaterID, posts[0].ID)
+	}
+}
+
+func TestListReadLaterPosts_OrdersMostRecentlyMarkedFirst(t *testing.T) {
+	// given: two read-later posts, marked at explicit, distinct times
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	olderID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-older"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	newerID, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-newer"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if _, err := conn.Exec(
+		`INSERT INTO saved_posts (post_id, read_later_at) VALUES (?, ?), (?, ?)`,
+		olderID, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		newerID, time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("failed to seed saved_posts: %v", err)
+	}
+
+	// when: we list read-later posts
+	posts, err := ListReadLaterPosts(conn)
+	if err != nil {
+		t.Fatalf("ListReadLaterPosts() returned error: %v", err)
+	}
+
+	// then: the more recently marked post comes first
+	if len(posts) != 2 {
+		t.Fatalf("expected 2 read-later posts, got %d", len(posts))
+	}
+	if posts[0].ID != newerID || posts[1].ID != olderID {
+		t.Errorf("expected order [%d, %d], got [%d, %d]", newerID, olderID, posts[0].ID, posts[1].ID)
+	}
+}
+
 func TestListPostsByFeed_ReturnsOnlyThatFeedsPosts(t *testing.T) {
 	// given: posts belonging to two different feeds
 	conn := newTestDB(t)

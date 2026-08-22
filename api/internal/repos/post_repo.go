@@ -99,6 +99,41 @@ func ListPostsByFeed(conn *sql.DB, feedID int64) ([]models.Post, error) {
 	return scanPosts(rows)
 }
 
+// ListFavoritedPosts returns every favorited post, most recently favorited
+// first - what the Saved page's Favorites tab is built from. An INNER
+// JOIN, unlike ListPostsByDate/ListPostsByFeed's LEFT JOIN - here we
+// specifically want only posts that have a saved_posts row with
+// favorited_at set, not every post annotated with (mostly nil) saved state.
+func ListFavoritedPosts(conn *sql.DB) ([]models.Post, error) {
+	rows, err := conn.Query(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE sp.favorited_at IS NOT NULL
+		 ORDER BY sp.favorited_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows)
+}
+
+// ListReadLaterPosts returns every read-later post, most recently marked
+// first - what the Saved page's Read Later tab is built from.
+func ListReadLaterPosts(conn *sql.DB) ([]models.Post, error) {
+	rows, err := conn.Query(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE sp.read_later_at IS NOT NULL
+		 ORDER BY sp.read_later_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows)
+}
+
 // DeletePostsByDate deletes posts fetched before the given time. Intended
 // for deliberate, manually-triggered retention cleanup - never called as
 // part of the normal fetch/serve flow, since silently removing past posts
