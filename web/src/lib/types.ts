@@ -9,10 +9,18 @@ export interface Post {
 	url: string;
 	feedName: string;
 	publishedAt: string;
+	// ISO strings when set (matching Feed.disabledAt's convention), null
+	// for the vast majority of posts which have never been saved.
+	favoritedAt: string | null;
+	readLaterAt: string | null;
 }
 
 // PostModel is what components actually render - fields already shaped
 // for display. Built from a Post via toPostModel() (see postModel.ts).
+// isFavorited/isReadLater are plain booleans, not the raw timestamps Post
+// carries - components only ever need to know whether to show a badge, not
+// when it was saved, so the null-check happens once here rather than in
+// every component that renders one.
 export interface PostModel {
 	id: number;
 	title: string;
@@ -21,6 +29,16 @@ export interface PostModel {
 	url: string;
 	feedName: string;
 	publishedAtDisplay: string;
+	isFavorited: boolean;
+	isReadLater: boolean;
+}
+
+// SavedState is what the favorite/read-later toggle endpoints return -
+// just the two fields that changed, not a full Post (the caller already
+// has the rest of the post rendered).
+export interface SavedState {
+	favoritedAt: string | null;
+	readLaterAt: string | null;
 }
 
 // Feed matches exactly what the API client delivers for a feed - raw,

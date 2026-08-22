@@ -5,21 +5,25 @@
 	down and PostListItem for everything below the fold.
 -->
 <script lang="ts">
+	import SavedBadges from './SavedBadges.svelte';
 	import type { PostModel } from '$lib/types';
 
 	let { post }: { post: PostModel } = $props();
 </script>
 
-<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- post.url is an external article link, not an internal SvelteKit route -->
-<a class="hero-post" href={post.url} target="_blank" rel="noopener noreferrer">
+<article class="hero-post">
 	<img src={post.imageUrl} alt="" />
+	<SavedBadges {post} size="lg" />
 	<div class="content">
 		<span class="kicker">{post.feedName}</span>
-		<h2>{post.title}</h2>
+		<h2>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- post.url is an external article link, not an internal SvelteKit route -->
+			<a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
+		</h2>
 		<p class="desc">{post.description}</p>
 		<span class="date-dot">{post.publishedAtDisplay}</span>
 	</div>
-</a>
+</article>
 
 <style>
 	.hero-post {
@@ -32,7 +36,6 @@
 		min-height: 360px;
 		display: flex;
 		align-items: flex-end;
-		text-decoration: none;
 	}
 	.hero-post img {
 		position: absolute;
@@ -77,6 +80,13 @@
 		font-size: 1.7rem;
 		line-height: 1.15;
 		margin: 0 0 0.4rem;
+	}
+	.hero-post h2 a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.hero-post h2 a:hover {
+		text-decoration: underline;
 	}
 	.hero-post p.desc {
 		font-size: 0.95rem;

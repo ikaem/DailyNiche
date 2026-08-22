@@ -1,5 +1,11 @@
 import { getPostsByDate, getPostsToday } from '$lib/server/api';
-import type { PageServerLoad } from './$types';
+import {
+	favoritePostAction,
+	markReadLaterAction,
+	unfavoritePostAction,
+	unmarkReadLaterAction
+} from '$lib/server/savedPostActions';
+import type { Actions, PageServerLoad } from './$types';
 
 // Today's date in UTC as YYYY-MM-DD, matching this app's established
 // UTC-everywhere convention (see CLAUDE.md's Timestamps & Timezones note) -
@@ -31,4 +37,14 @@ export const load: PageServerLoad = async ({ url }) => {
 			date
 		};
 	}
+};
+
+// All four are shared with the Saved page (see $lib/server/savedPostActions)
+// - the actual logic lives there since SvelteKit requires each route to
+// export its own `actions`, even when the implementation is identical.
+export const actions: Actions = {
+	favoritePost: favoritePostAction,
+	unfavoritePost: unfavoritePostAction,
+	markReadLater: markReadLaterAction,
+	unmarkReadLater: unmarkReadLaterAction
 };

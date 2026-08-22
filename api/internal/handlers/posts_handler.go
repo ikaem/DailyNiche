@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/karlo/dailyniche/internal/models"
 	"github.com/karlo/dailyniche/internal/repos"
 )
 
@@ -17,15 +18,17 @@ import (
 // numeric ID for filtering (feed_id query param) or any future per-feed
 // features.
 type PostResponse struct {
-	ID             int64     `json:"id"`
-	FeedID         int64     `json:"feed_id"`
-	FeedName       string    `json:"feed_name"`
-	Title          string    `json:"title"`
-	URL            string    `json:"url"`
-	ContentSummary string    `json:"content_summary"`
-	ImageURL       string    `json:"image_url"`
-	PublishedAt    time.Time `json:"published_at"`
-	FetchedAt      time.Time `json:"fetched_at"`
+	ID             int64      `json:"id"`
+	FeedID         int64      `json:"feed_id"`
+	FeedName       string     `json:"feed_name"`
+	Title          string     `json:"title"`
+	URL            string     `json:"url"`
+	ContentSummary string     `json:"content_summary"`
+	ImageURL       string     `json:"image_url"`
+	PublishedAt    time.Time  `json:"published_at"`
+	FetchedAt      time.Time  `json:"fetched_at"`
+	FavoritedAt    *time.Time `json:"favorited_at"`
+	ReadLaterAt    *time.Time `json:"read_later_at"`
 }
 
 // placeholderImageSVG is a generic "no image" glyph (a photo icon: a sun and
@@ -88,34 +91,93 @@ func Posts(conn *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		if feedIDFilter != nil {
+			filtered := make([]models.Post, 0, len(posts))
+			for _, p := range posts {
+				if p.FeedID == *feedIDFilter {
+					filtered = append(filtered, p)
+				}
+			}
+			posts = filtered
+		}
+
 		feedNames, err := feedNameLookup(conn)
 		if err != nil {
 			writeError(w, "failed to list feeds", http.StatusInternalServerError)
 			return
 		}
 
-		responses := make([]PostResponse, 0, len(posts))
-		for _, p := range posts {
-			if feedIDFilter != nil && p.FeedID != *feedIDFilter {
-				continue
-			}
-			responses = append(responses, PostResponse{
-				ID:             p.ID,
-				FeedID:         p.FeedID,
-				FeedName:       feedNames[p.FeedID],
-				Title:          p.Title,
-				URL:            p.URL,
-				ContentSummary: p.ContentSummary,
-				ImageURL:       imageURLOrPlaceholder(p.ImageURL),
-				PublishedAt:    p.PublishedAt,
-				FetchedAt:      p.FetchedAt,
-			})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(toPostResponses(posts, feedNames))
+	}
+}
+
+// FavoritedPosts returns an http.HandlerFunc for GET /api/posts/favorites,
+// backed by conn - what the Saved page's Favorites tab is built from.
+func FavoritedPosts(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		posts, err := repos.ListFavoritedPosts(conn)
+		if err != nil {
+			writeError(w, "failed to list favorited posts", http.StatusInternalServerError)
+			return
+		}
+
+		feedNames, err := feedNameLookup(conn)
+		if err != nil {
+			writeError(w, "failed to list feeds", http.StatusInternalServerError)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(responses)
+		json.NewEncoder(w).Encode(toPostResponses(posts, feedNames))
 	}
+}
+
+// ReadLaterPosts returns an http.HandlerFunc for GET /api/posts/read-later,
+// backed by conn - what the Saved page's Read Later tab is built from.
+func ReadLaterPosts(conn *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		posts, err := repos.ListReadLaterPosts(conn)
+		if err != nil {
+			writeError(w, "failed to list read-later posts", http.StatusInternalServerError)
+			return
+		}
+
+		feedNames, err := feedNameLookup(conn)
+		if err != nil {
+			writeError(w, "failed to list feeds", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(toPostResponses(posts, feedNames))
+	}
+}
+
+// toPostResponses maps posts into their API response shape, enriching each
+// with its feed's name - shared by Posts/FavoritedPosts/ReadLaterPosts,
+// which differ only in which repos list function feeds them.
+func toPostResponses(posts []models.Post, feedNames map[int64]string) []PostResponse {
+	responses := make([]PostResponse, 0, len(posts))
+	for _, p := range posts {
+		responses = append(responses, PostResponse{
+			ID:             p.ID,
+			FeedID:         p.FeedID,
+			FeedName:       feedNames[p.FeedID],
+			Title:          p.Title,
+			URL:            p.URL,
+			ContentSummary: p.ContentSummary,
+			ImageURL:       imageURLOrPlaceholder(p.ImageURL),
+			PublishedAt:    p.PublishedAt,
+			FetchedAt:      p.FetchedAt,
+			FavoritedAt:    p.FavoritedAt,
+			ReadLaterAt:    p.ReadLaterAt,
+		})
+	}
+	return responses
 }
 
 // parseDateParam parses raw (the "date" query param) as YYYY-MM-DD.

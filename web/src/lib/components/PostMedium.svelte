@@ -4,32 +4,34 @@
 	below - a step down in visual weight from PostHero.
 -->
 <script lang="ts">
+	import SavedBadges from './SavedBadges.svelte';
 	import type { PostModel } from '$lib/types';
 
 	let { post }: { post: PostModel } = $props();
 </script>
 
-<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- post.url is an external article link, not an internal SvelteKit route -->
-<a class="medium-post" href={post.url} target="_blank" rel="noopener noreferrer">
+<article class="medium-post">
 	<img src={post.imageUrl} alt="" />
+	<SavedBadges {post} />
 	<div class="content">
 		<span class="kicker">{post.feedName}</span>
-		<h3>{post.title}</h3>
+		<h3>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- post.url is an external article link, not an internal SvelteKit route -->
+			<a href={post.url} target="_blank" rel="noopener noreferrer">{post.title}</a>
+		</h3>
 		<p class="desc">{post.description}</p>
 	</div>
-</a>
+</article>
 
 <style>
 	.medium-post {
+		position: relative;
 		grid-column: span 3;
 		background: var(--card);
 		border-radius: 12px;
 		overflow: hidden;
 		box-shadow: 0 2px 10px rgba(24, 20, 15, 0.06);
 		border: 1px solid var(--line);
-		display: block;
-		color: inherit;
-		text-decoration: none;
 	}
 	.medium-post img {
 		width: 100%;
@@ -57,6 +59,13 @@
 		font-size: 1.05rem;
 		line-height: 1.25;
 		margin: 0 0 0.3rem;
+	}
+	.medium-post h3 a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.medium-post h3 a:hover {
+		text-decoration: underline;
 	}
 	.medium-post p.desc {
 		font-family: 'Inter', Arial, sans-serif;

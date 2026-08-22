@@ -11,7 +11,9 @@ export function toPostModel(post: Post): PostModel {
 		imageUrl: post.imageUrl,
 		url: post.url,
 		feedName: post.feedName,
-		publishedAtDisplay: formatDate(post.publishedAt)
+		publishedAtDisplay: formatDate(post.publishedAt),
+		isFavorited: post.favoritedAt !== null,
+		isReadLater: post.readLaterAt !== null
 	};
 }
 

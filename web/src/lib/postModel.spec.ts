@@ -12,7 +12,9 @@ describe('toPostModel', () => {
 			imageUrl: 'https://example.com/image.jpg',
 			url: 'https://example.com/post',
 			feedName: 'Tech Blog',
-			publishedAt: '2026-07-08T17:45:56.319884647Z'
+			publishedAt: '2026-07-08T17:45:56.319884647Z',
+			favoritedAt: null,
+			readLaterAt: null
 		};
 
 		// when: we map it to a PostModel
@@ -26,5 +28,49 @@ describe('toPostModel', () => {
 		expect(model.imageUrl).toBe(post.imageUrl);
 		expect(model.url).toBe(post.url);
 		expect(model.feedName).toBe(post.feedName);
+	});
+
+	it('derives isFavorited/isReadLater as false when neither is set', () => {
+		// given: a post with no saved state
+		const post: Post = {
+			id: 1,
+			title: 'Go 2.0 Announced',
+			description: 'The Go team announces the next major version.',
+			imageUrl: 'https://example.com/image.jpg',
+			url: 'https://example.com/post',
+			feedName: 'Tech Blog',
+			publishedAt: '2026-07-08T17:45:56.319884647Z',
+			favoritedAt: null,
+			readLaterAt: null
+		};
+
+		// when: we map it to a PostModel
+		const model = toPostModel(post);
+
+		// then: both flags are false
+		expect(model.isFavorited).toBe(false);
+		expect(model.isReadLater).toBe(false);
+	});
+
+	it('derives isFavorited/isReadLater as true when both are set', () => {
+		// given: a post that's both favorited and read-later
+		const post: Post = {
+			id: 1,
+			title: 'Go 2.0 Announced',
+			description: 'The Go team announces the next major version.',
+			imageUrl: 'https://example.com/image.jpg',
+			url: 'https://example.com/post',
+			feedName: 'Tech Blog',
+			publishedAt: '2026-07-08T17:45:56.319884647Z',
+			favoritedAt: '2026-07-09T08:00:00Z',
+			readLaterAt: '2026-07-09T08:01:00Z'
+		};
+
+		// when: we map it to a PostModel
+		const model = toPostModel(post);
+
+		// then: both flags are true - a post can be both at once
+		expect(model.isFavorited).toBe(true);
+		expect(model.isReadLater).toBe(true);
 	});
 });

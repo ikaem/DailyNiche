@@ -33,10 +33,33 @@ func CreatePost(conn *sql.DB, post *models.Post) (int64, error) {
 	return result.LastInsertId()
 }
 
+// GetPost returns the post with the given ID, saved state included (same
+// LEFT JOIN as ListPostsByDate/ListPostsByFeed) - lets callers (e.g. the
+// favorite/read-later handlers) confirm a post actually exists before
+// touching saved_posts, since post_id there isn't enforced as a real
+// foreign key (SQLite's FK enforcement is off by default and never
+// enabled here).
+func GetPost(conn *sql.DB, id int64) (*models.Post, error) {
+	var p models.Post
+	err := conn.QueryRow(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 LEFT JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE p.id = ?`,
+		id,
+	).Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.ImageURL, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt, &p.FavoritedAt, &p.ReadLaterAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 // ListPostsByDate returns posts fetched during the UTC calendar day that
 // date falls on, newest published first. This is what a daily magazine
 // issue is built from - fetched_at is when we discovered the post, not
-// when the feed originally published it.
+// when the feed originally published it. LEFT JOINs saved_posts so each
+// post's FavoritedAt/ReadLaterAt (nil for the vast majority of posts) come
+// back in the same query, rather than a separate lookup per post.
 func ListPostsByDate(conn *sql.DB, date time.Time) ([]models.Post, error) {
 	// Example: date passed in as 2024-03-15 22:00:00 -05:00 (i.e. 10pm in a
 	// UTC-5 zone).
@@ -47,10 +70,11 @@ func ListPostsByDate(conn *sql.DB, date time.Time) ([]models.Post, error) {
 	// end   = 2024-03-17 00:00:00 UTC
 
 	rows, err := conn.Query(
-		`SELECT id, feed_id, title, url, content_summary, image_url, published_at, fetched_at, guid, created_at
-		 FROM posts
-		 WHERE fetched_at >= ? AND fetched_at < ?
-		 ORDER BY published_at DESC`,
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 LEFT JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE p.fetched_at >= ? AND p.fetched_at < ?
+		 ORDER BY p.published_at DESC`,
 		start, end,
 	)
 	if err != nil {
@@ -62,11 +86,47 @@ func ListPostsByDate(conn *sql.DB, date time.Time) ([]models.Post, error) {
 // ListPostsByFeed returns every post for feedID, newest published first.
 func ListPostsByFeed(conn *sql.DB, feedID int64) ([]models.Post, error) {
 	rows, err := conn.Query(
-		`SELECT id, feed_id, title, url, content_summary, image_url, published_at, fetched_at, guid, created_at
-		 FROM posts
-		 WHERE feed_id = ?
-		 ORDER BY published_at DESC`,
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 LEFT JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE p.feed_id = ?
+		 ORDER BY p.published_at DESC`,
 		feedID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows)
+}
+
+// ListFavoritedPosts returns every favorited post, most recently favorited
+// first - what the Saved page's Favorites tab is built from. An INNER
+// JOIN, unlike ListPostsByDate/ListPostsByFeed's LEFT JOIN - here we
+// specifically want only posts that have a saved_posts row with
+// favorited_at set, not every post annotated with (mostly nil) saved state.
+func ListFavoritedPosts(conn *sql.DB) ([]models.Post, error) {
+	rows, err := conn.Query(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE sp.favorited_at IS NOT NULL
+		 ORDER BY sp.favorited_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return scanPosts(rows)
+}
+
+// ListReadLaterPosts returns every read-later post, most recently marked
+// first - what the Saved page's Read Later tab is built from.
+func ListReadLaterPosts(conn *sql.DB) ([]models.Post, error) {
+	rows, err := conn.Query(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE sp.read_later_at IS NOT NULL
+		 ORDER BY sp.read_later_at DESC`,
 	)
 	if err != nil {
 		return nil, err
@@ -91,7 +151,7 @@ func scanPosts(rows *sql.Rows) ([]models.Post, error) {
 	posts := []models.Post{}
 	for rows.Next() {
 		var p models.Post
-		if err := rows.Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.ImageURL, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.ImageURL, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt, &p.FavoritedAt, &p.ReadLaterAt); err != nil {
 			return nil, err
 		}
 		posts = append(posts, p)

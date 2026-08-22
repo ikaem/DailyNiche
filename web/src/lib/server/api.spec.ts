@@ -4,10 +4,16 @@ import {
 	addFeed,
 	deleteFeed,
 	enableFeed,
+	favoritePost,
 	fetchNow,
+	getFavoritedPosts,
 	getFeeds,
 	getPostsByDate,
 	getPostsToday,
+	getReadLaterPosts,
+	markReadLater,
+	unfavoritePost,
+	unmarkReadLater,
 	updateFeed
 } from './api';
 
@@ -40,7 +46,9 @@ describe('api', () => {
 				content_summary: 'The Go team announces the next major version.',
 				image_url: 'https://example.com/go-2-0.jpg',
 				published_at: '2026-07-10T09:00:00Z',
-				fetched_at: '2026-07-10T09:05:00Z'
+				fetched_at: '2026-07-10T09:05:00Z',
+				favorited_at: null,
+				read_later_at: null
 			};
 			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
 
@@ -57,9 +65,36 @@ describe('api', () => {
 					imageUrl: 'https://example.com/go-2-0.jpg',
 					url: 'https://example.com/go-2-0',
 					feedName: 'Tech Blog',
-					publishedAt: '2026-07-10T09:00:00Z'
+					publishedAt: '2026-07-10T09:00:00Z',
+					favoritedAt: null,
+					readLaterAt: null
 				}
 			]);
+		});
+
+		it('maps favorited_at/read_later_at through when a post has been saved', async () => {
+			// given: the API reports a post that's both favorited and read-later
+			const wirePost = {
+				id: 1,
+				feed_id: 2,
+				feed_name: 'Tech Blog',
+				title: 'Go 2.0 Announced',
+				url: 'https://example.com/go-2-0',
+				content_summary: 'The Go team announces the next major version.',
+				image_url: 'https://example.com/go-2-0.jpg',
+				published_at: '2026-07-10T09:00:00Z',
+				fetched_at: '2026-07-10T09:05:00Z',
+				favorited_at: '2026-07-11T08:00:00Z',
+				read_later_at: '2026-07-11T08:01:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting posts for a specific date
+			const posts = await getPostsByDate('2026-07-10');
+
+			// then: both saved-state fields map through as their camelCase names
+			expect(posts[0].favoritedAt).toBe('2026-07-11T08:00:00Z');
+			expect(posts[0].readLaterAt).toBe('2026-07-11T08:01:00Z');
 		});
 	});
 
@@ -75,7 +110,9 @@ describe('api', () => {
 				content_summary: 'A no-fuss guide to your first starter.',
 				image_url: '',
 				published_at: '2026-07-13T11:15:00Z',
-				fetched_at: '2026-07-13T11:20:00Z'
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: null,
+				read_later_at: null
 			};
 			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
 
@@ -94,7 +131,87 @@ describe('api', () => {
 					imageUrl: '',
 					url: 'https://example.com/sourdough',
 					feedName: 'Cooking Blog',
-					publishedAt: '2026-07-13T11:15:00Z'
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: null,
+					readLaterAt: null
+				}
+			]);
+		});
+	});
+
+	describe('getFavoritedPosts', () => {
+		it('requests /api/posts/favorites and maps the wire post to a Post', async () => {
+			// given: the API returns one favorited post
+			const wirePost = {
+				id: 4,
+				feed_id: 5,
+				feed_name: 'Cooking Blog',
+				title: 'Perfect Sourdough Starter',
+				url: 'https://example.com/sourdough',
+				content_summary: 'A no-fuss guide to your first starter.',
+				image_url: '',
+				published_at: '2026-07-13T11:15:00Z',
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: '2026-07-14T09:00:00Z',
+				read_later_at: null
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting favorited posts
+			const posts = await getFavoritedPosts();
+
+			// then: fetch is called against /api/posts/favorites, and the post is mapped
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/favorites`, undefined);
+			expect(posts).toEqual([
+				{
+					id: 4,
+					title: 'Perfect Sourdough Starter',
+					description: 'A no-fuss guide to your first starter.',
+					imageUrl: '',
+					url: 'https://example.com/sourdough',
+					feedName: 'Cooking Blog',
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: '2026-07-14T09:00:00Z',
+					readLaterAt: null
+				}
+			]);
+		});
+	});
+
+	describe('getReadLaterPosts', () => {
+		it('requests /api/posts/read-later and maps the wire post to a Post', async () => {
+			// given: the API returns one read-later post
+			const wirePost = {
+				id: 6,
+				feed_id: 7,
+				feed_name: 'Travel Blog',
+				title: 'A Weekend in Ljubljana',
+				url: 'https://example.com/ljubljana',
+				content_summary: 'Small city, big charm.',
+				image_url: '',
+				published_at: '2026-07-13T11:15:00Z',
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: null,
+				read_later_at: '2026-07-14T09:01:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting read-later posts
+			const posts = await getReadLaterPosts();
+
+			// then: fetch is called against /api/posts/read-later, and the post is mapped
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/read-later`, undefined);
+			expect(posts).toEqual([
+				{
+					id: 6,
+					title: 'A Weekend in Ljubljana',
+					description: 'Small city, big charm.',
+					imageUrl: '',
+					url: 'https://example.com/ljubljana',
+					feedName: 'Travel Blog',
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: null,
+					readLaterAt: '2026-07-14T09:01:00Z'
 				}
 			]);
 		});
@@ -263,7 +380,9 @@ describe('api', () => {
 					new: 0,
 					duplicates: 0,
 					errors: 1,
-					failed_feeds: [{ feed_name: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }]
+					failed_feeds: [
+						{ feed_name: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }
+					]
 				})
 			);
 
@@ -274,6 +393,68 @@ describe('api', () => {
 			expect(summary.failedFeeds).toEqual([
 				{ feedName: 'Sputnikmusic Staff Blog', error: 'tls: certificate has expired' }
 			]);
+		});
+	});
+
+	describe('favoritePost', () => {
+		it('sends a POST request and maps the returned saved state', async () => {
+			// given: the API favorites the post and returns its saved state
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ favorited_at: '2026-08-22T09:00:00Z', read_later_at: null })
+			);
+
+			// when: favoriting a post
+			const state = await favoritePost(3);
+
+			// then: fetch is called with POST against that post's favorite path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/favorite`, { method: 'POST' });
+			expect(state).toEqual({ favoritedAt: '2026-08-22T09:00:00Z', readLaterAt: null });
+		});
+	});
+
+	describe('unfavoritePost', () => {
+		it('sends a DELETE request and maps the returned saved state', async () => {
+			// given: the API unfavorites the post
+			vi.mocked(fetch).mockResolvedValue(mockResponse({ favorited_at: null, read_later_at: null }));
+
+			// when: unfavoriting a post
+			const state = await unfavoritePost(3);
+
+			// then: fetch is called with DELETE against that post's favorite path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/favorite`, { method: 'DELETE' });
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: null });
+		});
+	});
+
+	describe('markReadLater', () => {
+		it('sends a POST request and maps the returned saved state', async () => {
+			// given: the API marks the post read-later
+			vi.mocked(fetch).mockResolvedValue(
+				mockResponse({ favorited_at: null, read_later_at: '2026-08-22T09:01:00Z' })
+			);
+
+			// when: marking a post read-later
+			const state = await markReadLater(3);
+
+			// then: fetch is called with POST against that post's read-later path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/read-later`, { method: 'POST' });
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: '2026-08-22T09:01:00Z' });
+		});
+	});
+
+	describe('unmarkReadLater', () => {
+		it('sends a DELETE request and maps the returned saved state', async () => {
+			// given: the API unmarks the post
+			vi.mocked(fetch).mockResolvedValue(mockResponse({ favorited_at: null, read_later_at: null }));
+
+			// when: unmarking a post's read-later state
+			const state = await unmarkReadLater(3);
+
+			// then: fetch is called with DELETE against that post's read-later path
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/3/read-later`, {
+				method: 'DELETE'
+			});
+			expect(state).toEqual({ favoritedAt: null, readLaterAt: null });
 		});
 	});
 

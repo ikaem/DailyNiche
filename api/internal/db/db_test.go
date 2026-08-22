@@ -122,10 +122,11 @@ func TestMigrate_IsIdempotent(t *testing.T) {
 // TestMigrate_RecordsMigrationsInSchemaMigrationsTable and
 // TestMigrate_DoesNotReapplyOnSecondCall exercise the real embedded
 // migrations/*.sql (not a fabricated fs.FS like migration_test.go uses), so
-// they're coupled to what's actually in that directory right now: two
-// migrations, 0001_init.sql and 0002_add_image_url.sql, hence "versions 1
-// and 2" and "exactly two rows" below. Adding a third real migration means
-// updating both again - that's expected, not a sign of flakiness.
+// they're coupled to what's actually in that directory right now: three
+// migrations, 0001_init.sql, 0002_add_image_url.sql, and
+// 0003_add_saved_posts.sql, hence "versions 1, 2, and 3" and "exactly three
+// rows" below. Adding a fourth real migration means updating both again -
+// that's expected, not a sign of flakiness.
 
 func TestMigrate_RecordsMigrationsInSchemaMigrationsTable(t *testing.T) {
 	// given: a fresh database
@@ -140,13 +141,13 @@ func TestMigrate_RecordsMigrationsInSchemaMigrationsTable(t *testing.T) {
 		t.Fatalf("Migrate() returned error: %v", err)
 	}
 
-	// then: both migrations are recorded as applied
+	// then: all three migrations are recorded as applied
 	applied, err := appliedVersions(conn)
 	if err != nil {
 		t.Fatalf("appliedVersions() returned error: %v", err)
 	}
-	if !applied[1] || !applied[2] {
-		t.Errorf("expected versions 1 (init) and 2 (add_image_url) to be recorded as applied, got %v", applied)
+	if !applied[1] || !applied[2] || !applied[3] {
+		t.Errorf("expected versions 1 (init), 2 (add_image_url), and 3 (add_saved_posts) to be recorded as applied, got %v", applied)
 	}
 }
 
@@ -166,7 +167,7 @@ func TestMigrate_DoesNotReapplyOnSecondCall(t *testing.T) {
 		t.Fatalf("second Migrate() returned error: %v", err)
 	}
 
-	// then: schema_migrations still has exactly two rows, not duplicates.
+	// then: schema_migrations still has exactly three rows, not duplicates.
 	// (If the applied[m.version] guard in Migrate() were ever broken, this
 	// second call would fail above with a primary-key constraint error
 	// before ever reaching this count check.)
@@ -175,8 +176,8 @@ func TestMigrate_DoesNotReapplyOnSecondCall(t *testing.T) {
 	if err := row.Scan(&count); err != nil {
 		t.Fatalf("failed to count schema_migrations rows: %v", err)
 	}
-	if count != 2 {
-		t.Errorf("expected exactly 2 recorded migrations, got %d", count)
+	if count != 3 {
+		t.Errorf("expected exactly 3 recorded migrations, got %d", count)
 	}
 }
 

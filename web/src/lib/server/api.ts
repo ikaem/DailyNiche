@@ -1,5 +1,5 @@
 import { env } from '$env/dynamic/private';
-import type { Feed, FetchSummary, Post } from '../types';
+import type { Feed, FetchSummary, Post, SavedState } from '../types';
 
 // ApiError carries the HTTP status alongside the message, so callers (e.g.
 // FeedManager, Task 7.4) can branch on it - a 409 duplicate-URL response
@@ -27,6 +27,8 @@ interface PostWire {
 	image_url: string;
 	published_at: string;
 	fetched_at: string;
+	favorited_at: string | null;
+	read_later_at: string | null;
 }
 
 interface FeedWire {
@@ -50,6 +52,11 @@ interface FetchSummaryWire {
 	failed_feeds: FeedFailureWire[];
 }
 
+interface SavedStateWire {
+	favorited_at: string | null;
+	read_later_at: string | null;
+}
+
 function toPost(wire: PostWire): Post {
 	return {
 		id: wire.id,
@@ -58,7 +65,9 @@ function toPost(wire: PostWire): Post {
 		imageUrl: wire.image_url,
 		url: wire.url,
 		feedName: wire.feed_name,
-		publishedAt: wire.published_at
+		publishedAt: wire.published_at,
+		favoritedAt: wire.favorited_at,
+		readLaterAt: wire.read_later_at
 	};
 }
 
@@ -77,6 +86,13 @@ function toFetchSummary(wire: FetchSummaryWire): FetchSummary {
 		duplicates: wire.duplicates,
 		errors: wire.errors,
 		failedFeeds: wire.failed_feeds.map((f) => ({ feedName: f.feed_name, error: f.error }))
+	};
+}
+
+function toSavedState(wire: SavedStateWire): SavedState {
+	return {
+		favoritedAt: wire.favorited_at,
+		readLaterAt: wire.read_later_at
 	};
 }
 
@@ -123,6 +139,16 @@ export async function getPostsToday(): Promise<Post[]> {
 	return wire.map(toPost);
 }
 
+export async function getFavoritedPosts(): Promise<Post[]> {
+	const wire = await apiFetchJson<PostWire[]>('/api/posts/favorites');
+	return wire.map(toPost);
+}
+
+export async function getReadLaterPosts(): Promise<Post[]> {
+	const wire = await apiFetchJson<PostWire[]>('/api/posts/read-later');
+	return wire.map(toPost);
+}
+
 export async function getFeeds(): Promise<Feed[]> {
 	const wire = await apiFetchJson<FeedWire[]>('/api/feeds');
 	return wire.map(toFeed);
@@ -158,4 +184,30 @@ export async function deleteFeed(id: number): Promise<void> {
 export async function fetchNow(): Promise<FetchSummary> {
 	const wire = await apiFetchJson<FetchSummaryWire>('/api/fetch', { method: 'POST' });
 	return toFetchSummary(wire);
+}
+
+export async function favoritePost(id: number): Promise<SavedState> {
+	const wire = await apiFetchJson<SavedStateWire>(`/api/posts/${id}/favorite`, { method: 'POST' });
+	return toSavedState(wire);
+}
+
+export async function unfavoritePost(id: number): Promise<SavedState> {
+	const wire = await apiFetchJson<SavedStateWire>(`/api/posts/${id}/favorite`, {
+		method: 'DELETE'
+	});
+	return toSavedState(wire);
+}
+
+export async function markReadLater(id: number): Promise<SavedState> {
+	const wire = await apiFetchJson<SavedStateWire>(`/api/posts/${id}/read-later`, {
+		method: 'POST'
+	});
+	return toSavedState(wire);
+}
+
+export async function unmarkReadLater(id: number): Promise<SavedState> {
+	const wire = await apiFetchJson<SavedStateWire>(`/api/posts/${id}/read-later`, {
+		method: 'DELETE'
+	});
+	return toSavedState(wire);
 }

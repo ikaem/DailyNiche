@@ -150,6 +150,50 @@ func TestPosts_ReturnsPostsForToday(t *testing.T) {
 	}
 }
 
+func TestPosts_IncludesSavedState(t *testing.T) {
+	// given: a favorited post and an untouched post, both fetched today
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	favoritedID, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:favorited-post", time.Now().UTC()))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := repos.FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:untouched-post", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts
+	req := httptest.NewRequest(http.MethodGet, "/api/posts", nil)
+	rec := httptest.NewRecorder()
+	Posts(conn)(rec, req)
+
+	// then: the favorited post's favorited_at is set, and read_later_at
+	// stays nil for both posts
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 posts, got %d", len(got))
+	}
+	byID := make(map[int64]PostResponse, len(got))
+	for _, p := range got {
+		byID[p.ID] = p
+	}
+	if byID[favoritedID].FavoritedAt == nil {
+		t.Error("expected the favorited post's favorited_at to be set")
+	}
+	if byID[favoritedID].ReadLaterAt != nil {
+		t.Error("expected the favorited post's read_later_at to remain nil")
+	}
+}
+
 func TestPosts_SubstitutesPlaceholderWhenPostHasNoImage(t *testing.T) {
 	// given: a post with no image url (newTestPost leaves ImageURL empty)
 	conn := newTestDB(t)
@@ -332,6 +376,123 @@ func TestPosts_ReturnsEmptyArrayWhenNoPosts(t *testing.T) {
 	// way to prove the wire format itself is [], which is exactly the
 	// guarantee the responses := make([]PostResponse, 0, len(posts))
 	// pre-allocation in posts_handler.go is meant to provide.
+	if body := strings.TrimSpace(rec.Body.String()); body != "[]" {
+		t.Errorf("expected empty JSON array \"[]\", got %q", body)
+	}
+}
+
+func TestFavoritedPosts_ReturnsOnlyFavoritedPosts(t *testing.T) {
+	// given: one favorited post and one untouched post
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	favoritedID, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:fav-endpoint", time.Now().UTC()))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := repos.FavoritePost(conn, favoritedID); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:fav-endpoint-untouched", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts/favorites
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/favorites", nil)
+	rec := httptest.NewRecorder()
+	FavoritedPosts(conn)(rec, req)
+
+	// then: it responds 200 with only the favorited post, enriched with its feed's name
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].ID != favoritedID {
+		t.Errorf("expected post %d, got %d", favoritedID, got[0].ID)
+	}
+	if got[0].FeedName != "Tech Blog" {
+		t.Errorf("expected feed_name %q, got %q", "Tech Blog", got[0].FeedName)
+	}
+}
+
+func TestFavoritedPosts_ReturnsEmptyArrayWhenNoneFavorited(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we request /api/posts/favorites
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/favorites", nil)
+	rec := httptest.NewRecorder()
+	FavoritedPosts(conn)(rec, req)
+
+	// then: it responds 200 with an empty JSON array, not null
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if body := strings.TrimSpace(rec.Body.String()); body != "[]" {
+		t.Errorf("expected empty JSON array \"[]\", got %q", body)
+	}
+}
+
+func TestReadLaterPosts_ReturnsOnlyReadLaterPosts(t *testing.T) {
+	// given: one read-later post and one untouched post
+	conn := newTestDB(t)
+	feedID, err := repos.CreateFeed(conn, "Tech Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	readLaterID, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-endpoint", time.Now().UTC()))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := repos.MarkReadLater(conn, readLaterID); err != nil {
+		t.Fatalf("MarkReadLater() returned error: %v", err)
+	}
+	if _, err := repos.CreatePost(conn, newTestPost(feedID, "urn:uuid:rl-endpoint-untouched", time.Now().UTC())); err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we request /api/posts/read-later
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/read-later", nil)
+	rec := httptest.NewRecorder()
+	ReadLaterPosts(conn)(rec, req)
+
+	// then: it responds 200 with only the read-later post
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	var got []PostResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected 1 post, got %d", len(got))
+	}
+	if got[0].ID != readLaterID {
+		t.Errorf("expected post %d, got %d", readLaterID, got[0].ID)
+	}
+}
+
+func TestReadLaterPosts_ReturnsEmptyArrayWhenNoneMarked(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we request /api/posts/read-later
+	req := httptest.NewRequest(http.MethodGet, "/api/posts/read-later", nil)
+	rec := httptest.NewRecorder()
+	ReadLaterPosts(conn)(rec, req)
+
+	// then: it responds 200 with an empty JSON array, not null
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
 	if body := strings.TrimSpace(rec.Body.String()); body != "[]" {
 		t.Errorf("expected empty JSON array \"[]\", got %q", body)
 	}
