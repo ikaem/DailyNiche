@@ -186,6 +186,31 @@ func TestUpdateFeed_UpdatesNameAndURL(t *testing.T) {
 	}
 }
 
+func TestUpdateFeed_ReturnsErrDuplicateURLWhenURLCollidesWithAnotherFeed(t *testing.T) {
+	// given: two feeds with distinct URLs
+	conn := newTestDB(t)
+	if _, err := CreateFeed(conn, "Feed A", "https://a.example.com/feed.xml"); err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	idB, err := CreateFeed(conn, "Feed B", "https://b.example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	feedB, err := GetFeed(conn, idB)
+	if err != nil {
+		t.Fatalf("GetFeed() returned error: %v", err)
+	}
+
+	// when: feed B is updated to use feed A's URL
+	feedB.URL = "https://a.example.com/feed.xml"
+	err = UpdateFeed(conn, feedB)
+
+	// then: it returns ErrDuplicateURL, not a raw driver error
+	if !errors.Is(err, ErrDuplicateURL) {
+		t.Fatalf("expected ErrDuplicateURL, got %v", err)
+	}
+}
+
 func TestDeleteFeed_SoftDeletesWithoutRemovingRow(t *testing.T) {
 	// given: a created feed
 	conn := newTestDB(t)

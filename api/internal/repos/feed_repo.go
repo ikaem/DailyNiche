@@ -97,13 +97,23 @@ func GetFeed(conn *sql.DB, id int64) (*models.Feed, error) {
 }
 
 // UpdateFeed updates a feed's name and url, and refreshes its updated_at.
+// Returns ErrDuplicateURL, not a raw driver error, if the new url collides
+// with a different feed's - same translation CreateFeed does, since editing
+// a feed's URL hits the exact same UNIQUE constraint an insert would.
 func UpdateFeed(conn *sql.DB, feed *models.Feed) error {
 	feed.UpdatedAt = time.Now().UTC()
 	_, err := conn.Exec(
 		`UPDATE feeds SET name = ?, url = ?, updated_at = ? WHERE id = ?`,
 		feed.Name, feed.URL, feed.UpdatedAt, feed.ID,
 	)
-	return err
+	if err != nil {
+		var sqliteErr *sqlite.Error
+		if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqliteConstraintUniqueCode {
+			return ErrDuplicateURL
+		}
+		return err
+	}
+	return nil
 }
 
 // DeleteFeed soft-deletes a feed by setting disabled_at rather than removing
