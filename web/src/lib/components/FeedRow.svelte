@@ -1,9 +1,9 @@
 <!--
 	One row in the dashboard's Active/Disabled Feeds lists - shared by both
 	sections so the edit-toggle behavior below isn't duplicated between them.
-	Disabled feeds get an inert "Enable" button instead of "Delete" (see the
-	TODO below), but both kinds of feed can be edited - a disabled feed can
-	still have a wrong name/url worth fixing.
+	Disabled feeds get "Enable" instead of "Delete", but both kinds of feed
+	can be edited - a disabled feed can still have a wrong name/url worth
+	fixing.
 -->
 <script lang="ts">
 	import { enhance } from '$app/forms';
@@ -59,10 +59,10 @@
 					<button type="submit" class="delete">Delete</button>
 				</form>
 			{:else}
-				<!-- Not wired to anything yet - repos.EnableFeed doesn't exist,
-				     see the Task 7.4 TODO in CLAUDE.md. Looks and behaves like a
-				     real button, just does nothing when clicked. -->
-				<button type="button" class="enable">Enable</button>
+				<form method="POST" action="?/enableFeed" use:enhance>
+					<input type="hidden" name="id" value={feed.id} />
+					<button type="submit" class="enable">Enable</button>
+				</form>
 			{/if}
 		</div>
 	</div>
