@@ -137,6 +137,15 @@ export async function addFeed(name: string, url: string): Promise<Feed> {
 	return toFeed(wire);
 }
 
+export async function updateFeed(id: number, name: string, url: string): Promise<Feed> {
+	const wire = await apiFetchJson<FeedWire>(`/api/feeds/${id}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ name, url })
+	});
+	return toFeed(wire);
+}
+
 export async function deleteFeed(id: number): Promise<void> {
 	await apiFetch(`/api/feeds/${id}`, { method: 'DELETE' });
 }

@@ -1,6 +1,14 @@
 import { API_URL } from '$env/static/private';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addFeed, deleteFeed, fetchNow, getFeeds, getPostsByDate, getPostsToday } from './api';
+import {
+	addFeed,
+	deleteFeed,
+	fetchNow,
+	getFeeds,
+	getPostsByDate,
+	getPostsToday,
+	updateFeed
+} from './api';
 
 function mockResponse(body: unknown, status = 200): Response {
 	return {
@@ -156,6 +164,37 @@ describe('api', () => {
 				id: 3,
 				name: 'New Blog',
 				url: 'https://example.com/new-feed',
+				disabledAt: null
+			});
+		});
+	});
+
+	describe('updateFeed', () => {
+		it('puts the corrected name and url, and maps the updated feed', async () => {
+			// given: the API accepts the correction and returns the updated feed
+			const wireFeed = {
+				id: 3,
+				name: 'Corrected Blog',
+				url: 'https://example.com/corrected-feed',
+				disabled_at: null,
+				created_at: '2026-07-13T00:00:00Z',
+				updated_at: '2026-08-22T00:00:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse(wireFeed, 200));
+
+			// when: correcting a feed's name/url
+			const feed = await updateFeed(3, 'Corrected Blog', 'https://example.com/corrected-feed');
+
+			// then: fetch is called with PUT against that feed's id, with the corrected body
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/feeds/3`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: 'Corrected Blog', url: 'https://example.com/corrected-feed' })
+			});
+			expect(feed).toEqual({
+				id: 3,
+				name: 'Corrected Blog',
+				url: 'https://example.com/corrected-feed',
 				disabledAt: null
 			});
 		});
