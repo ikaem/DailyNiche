@@ -139,6 +139,16 @@ export async function getPostsToday(): Promise<Post[]> {
 	return wire.map(toPost);
 }
 
+export async function getFavoritedPosts(): Promise<Post[]> {
+	const wire = await apiFetchJson<PostWire[]>('/api/posts/favorites');
+	return wire.map(toPost);
+}
+
+export async function getReadLaterPosts(): Promise<Post[]> {
+	const wire = await apiFetchJson<PostWire[]>('/api/posts/read-later');
+	return wire.map(toPost);
+}
+
 export async function getFeeds(): Promise<Feed[]> {
 	const wire = await apiFetchJson<FeedWire[]>('/api/feeds');
 	return wire.map(toFeed);

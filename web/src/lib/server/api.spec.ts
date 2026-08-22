@@ -6,9 +6,11 @@ import {
 	enableFeed,
 	favoritePost,
 	fetchNow,
+	getFavoritedPosts,
 	getFeeds,
 	getPostsByDate,
 	getPostsToday,
+	getReadLaterPosts,
 	markReadLater,
 	unfavoritePost,
 	unmarkReadLater,
@@ -132,6 +134,84 @@ describe('api', () => {
 					publishedAt: '2026-07-13T11:15:00Z',
 					favoritedAt: null,
 					readLaterAt: null
+				}
+			]);
+		});
+	});
+
+	describe('getFavoritedPosts', () => {
+		it('requests /api/posts/favorites and maps the wire post to a Post', async () => {
+			// given: the API returns one favorited post
+			const wirePost = {
+				id: 4,
+				feed_id: 5,
+				feed_name: 'Cooking Blog',
+				title: 'Perfect Sourdough Starter',
+				url: 'https://example.com/sourdough',
+				content_summary: 'A no-fuss guide to your first starter.',
+				image_url: '',
+				published_at: '2026-07-13T11:15:00Z',
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: '2026-07-14T09:00:00Z',
+				read_later_at: null
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting favorited posts
+			const posts = await getFavoritedPosts();
+
+			// then: fetch is called against /api/posts/favorites, and the post is mapped
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/favorites`, undefined);
+			expect(posts).toEqual([
+				{
+					id: 4,
+					title: 'Perfect Sourdough Starter',
+					description: 'A no-fuss guide to your first starter.',
+					imageUrl: '',
+					url: 'https://example.com/sourdough',
+					feedName: 'Cooking Blog',
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: '2026-07-14T09:00:00Z',
+					readLaterAt: null
+				}
+			]);
+		});
+	});
+
+	describe('getReadLaterPosts', () => {
+		it('requests /api/posts/read-later and maps the wire post to a Post', async () => {
+			// given: the API returns one read-later post
+			const wirePost = {
+				id: 6,
+				feed_id: 7,
+				feed_name: 'Travel Blog',
+				title: 'A Weekend in Ljubljana',
+				url: 'https://example.com/ljubljana',
+				content_summary: 'Small city, big charm.',
+				image_url: '',
+				published_at: '2026-07-13T11:15:00Z',
+				fetched_at: '2026-07-13T11:20:00Z',
+				favorited_at: null,
+				read_later_at: '2026-07-14T09:01:00Z'
+			};
+			vi.mocked(fetch).mockResolvedValue(mockResponse([wirePost]));
+
+			// when: requesting read-later posts
+			const posts = await getReadLaterPosts();
+
+			// then: fetch is called against /api/posts/read-later, and the post is mapped
+			expect(fetch).toHaveBeenCalledWith(`${API_URL}/api/posts/read-later`, undefined);
+			expect(posts).toEqual([
+				{
+					id: 6,
+					title: 'A Weekend in Ljubljana',
+					description: 'Small city, big charm.',
+					imageUrl: '',
+					url: 'https://example.com/ljubljana',
+					feedName: 'Travel Blog',
+					publishedAt: '2026-07-13T11:15:00Z',
+					favoritedAt: null,
+					readLaterAt: '2026-07-14T09:01:00Z'
 				}
 			]);
 		});
