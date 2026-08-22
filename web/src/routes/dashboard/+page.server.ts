@@ -1,5 +1,13 @@
 import { fail } from '@sveltejs/kit';
-import { addFeed, ApiError, deleteFeed, fetchNow, getFeeds, updateFeed } from '$lib/server/api';
+import {
+	addFeed,
+	ApiError,
+	deleteFeed,
+	enableFeed,
+	fetchNow,
+	getFeeds,
+	updateFeed
+} from '$lib/server/api';
 import type { FetchSummary } from '$lib/types';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -108,6 +116,24 @@ export const actions: Actions = {
 				return fail(err.status, { message: err.message });
 			}
 			return fail(500, { message: 'Failed to delete feed' });
+		}
+	},
+
+	enableFeed: async ({ request }) => {
+		const rawId = String((await request.formData()).get('id') ?? '');
+		const id = Number(rawId);
+
+		if (!rawId || Number.isNaN(id)) {
+			return fail(400, { message: 'a valid feed id is required' });
+		}
+
+		try {
+			await enableFeed(id);
+		} catch (err) {
+			if (err instanceof ApiError) {
+				return fail(err.status, { message: err.message });
+			}
+			return fail(500, { message: 'Failed to enable feed' });
 		}
 	},
 

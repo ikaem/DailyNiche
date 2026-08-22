@@ -6,16 +6,17 @@ import { ApiError } from '$lib/server/api';
 // paired like this. ApiError is spread through from the real module (via
 // vi.importActual) rather than faked, so `instanceof ApiError` inside the
 // action still works correctly against errors thrown in these tests.
-const { getFeeds, addFeed, updateFeed, deleteFeed, fetchNow } = vi.hoisted(() => ({
+const { getFeeds, addFeed, updateFeed, deleteFeed, enableFeed, fetchNow } = vi.hoisted(() => ({
 	getFeeds: vi.fn(),
 	addFeed: vi.fn(),
 	updateFeed: vi.fn(),
 	deleteFeed: vi.fn(),
+	enableFeed: vi.fn(),
 	fetchNow: vi.fn()
 }));
 vi.mock('$lib/server/api', async () => {
 	const actual = await vi.importActual<typeof import('$lib/server/api')>('$lib/server/api');
-	return { ...actual, getFeeds, addFeed, updateFeed, deleteFeed, fetchNow };
+	return { ...actual, getFeeds, addFeed, updateFeed, deleteFeed, enableFeed, fetchNow };
 });
 
 import { actions, load } from './+page.server';
@@ -25,6 +26,7 @@ beforeEach(() => {
 	addFeed.mockReset();
 	updateFeed.mockReset();
 	deleteFeed.mockReset();
+	enableFeed.mockReset();
 	fetchNow.mockReset();
 });
 
@@ -344,6 +346,84 @@ describe('dashboard actions.deleteFeed', () => {
 
 		// then: it falls back to a generic 500 message
 		expect(result).toEqual({ status: 500, data: { message: 'Failed to delete feed' } });
+	});
+});
+
+describe('dashboard actions.enableFeed', () => {
+	it('forwards the numeric id, returning nothing on success', async () => {
+		// given: enableFeed resolves
+		enableFeed.mockResolvedValue({
+			id: 3,
+			name: 'Re-enabled Blog',
+			url: 'https://example.com/re-enabled',
+			disabledAt: null
+		});
+		const request = formDataRequest({ id: '3' });
+
+		// when: the action runs
+		const result = await actions.enableFeed({ request } as Parameters<
+			typeof actions.enableFeed
+		>[0]);
+
+		// then: enableFeed is called with the id as a number, and nothing is returned
+		expect(enableFeed).toHaveBeenCalledWith(3);
+		expect(result).toBeUndefined();
+	});
+
+	it('fails with 400 and does not call enableFeed when id is missing', async () => {
+		// given: a submission with no id
+		const request = formDataRequest({});
+
+		// when: the action runs
+		const result = await actions.enableFeed({ request } as Parameters<
+			typeof actions.enableFeed
+		>[0]);
+
+		// then: it fails validation before ever calling enableFeed
+		expect(result).toEqual({ status: 400, data: { message: 'a valid feed id is required' } });
+		expect(enableFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with 400 and does not call enableFeed when id is not numeric', async () => {
+		// given: a submission with a non-numeric id
+		const request = formDataRequest({ id: 'abc' });
+
+		// when: the action runs
+		const result = await actions.enableFeed({ request } as Parameters<
+			typeof actions.enableFeed
+		>[0]);
+
+		// then: it fails validation before ever calling enableFeed
+		expect(result).toEqual({ status: 400, data: { message: 'a valid feed id is required' } });
+		expect(enableFeed).not.toHaveBeenCalled();
+	});
+
+	it('fails with the ApiError status and message when the Go API rejects the enable', async () => {
+		// given: enableFeed rejects with an ApiError (e.g. not found, 404)
+		enableFeed.mockRejectedValue(new ApiError('feed not found', 404));
+		const request = formDataRequest({ id: '99' });
+
+		// when: the action runs
+		const result = await actions.enableFeed({ request } as Parameters<
+			typeof actions.enableFeed
+		>[0]);
+
+		// then: it returns the same status and message as the ApiError
+		expect(result).toEqual({ status: 404, data: { message: 'feed not found' } });
+	});
+
+	it('fails with 500 when enableFeed throws a non-ApiError error', async () => {
+		// given: enableFeed rejects with an unexpected error
+		enableFeed.mockRejectedValue(new Error('connection reset'));
+		const request = formDataRequest({ id: '3' });
+
+		// when: the action runs
+		const result = await actions.enableFeed({ request } as Parameters<
+			typeof actions.enableFeed
+		>[0]);
+
+		// then: it falls back to a generic 500 message
+		expect(result).toEqual({ status: 500, data: { message: 'Failed to enable feed' } });
 	});
 });
 
