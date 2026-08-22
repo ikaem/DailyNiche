@@ -161,6 +161,73 @@ func TestListPostsByDate_ReturnsEmptySliceWhenNoneMatch(t *testing.T) {
 	}
 }
 
+func TestGetPost_ReturnsMatchingPost(t *testing.T) {
+	// given: a created post
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	id, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:get-post"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+
+	// when: we get it by ID
+	p, err := GetPost(conn, id)
+	if err != nil {
+		t.Fatalf("GetPost() returned error: %v", err)
+	}
+
+	// then: the returned post matches what was created
+	if p.ID != id {
+		t.Errorf("expected ID %d, got %d", id, p.ID)
+	}
+	if p.GUID != "urn:uuid:get-post" {
+		t.Errorf("expected guid %q, got %q", "urn:uuid:get-post", p.GUID)
+	}
+}
+
+func TestGetPost_PopulatesSavedState(t *testing.T) {
+	// given: a favorited post
+	conn := newTestDB(t)
+	feedID, err := CreateFeed(conn, "Sample Blog", "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("CreateFeed() returned error: %v", err)
+	}
+	id, err := CreatePost(conn, newTestPost(feedID, "urn:uuid:get-post-saved"))
+	if err != nil {
+		t.Fatalf("CreatePost() returned error: %v", err)
+	}
+	if err := FavoritePost(conn, id); err != nil {
+		t.Fatalf("FavoritePost() returned error: %v", err)
+	}
+
+	// when: we get it by ID
+	p, err := GetPost(conn, id)
+	if err != nil {
+		t.Fatalf("GetPost() returned error: %v", err)
+	}
+
+	// then: its saved state is populated
+	if p.FavoritedAt == nil {
+		t.Error("expected FavoritedAt to be set")
+	}
+}
+
+func TestGetPost_ReturnsErrorWhenNotFound(t *testing.T) {
+	// given: an empty database
+	conn := newTestDB(t)
+
+	// when: we get a post ID that doesn't exist
+	_, err := GetPost(conn, 999)
+
+	// then: it returns an error
+	if err == nil {
+		t.Fatal("expected an error for a nonexistent post, got nil")
+	}
+}
+
 func TestListPostsByDate_PopulatesSavedState(t *testing.T) {
 	// given: three posts fetched the same day - one favorited, one
 	// read-later, one untouched

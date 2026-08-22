@@ -33,6 +33,27 @@ func CreatePost(conn *sql.DB, post *models.Post) (int64, error) {
 	return result.LastInsertId()
 }
 
+// GetPost returns the post with the given ID, saved state included (same
+// LEFT JOIN as ListPostsByDate/ListPostsByFeed) - lets callers (e.g. the
+// favorite/read-later handlers) confirm a post actually exists before
+// touching saved_posts, since post_id there isn't enforced as a real
+// foreign key (SQLite's FK enforcement is off by default and never
+// enabled here).
+func GetPost(conn *sql.DB, id int64) (*models.Post, error) {
+	var p models.Post
+	err := conn.QueryRow(
+		`SELECT p.id, p.feed_id, p.title, p.url, p.content_summary, p.image_url, p.published_at, p.fetched_at, p.guid, p.created_at, sp.favorited_at, sp.read_later_at
+		 FROM posts p
+		 LEFT JOIN saved_posts sp ON sp.post_id = p.id
+		 WHERE p.id = ?`,
+		id,
+	).Scan(&p.ID, &p.FeedID, &p.Title, &p.URL, &p.ContentSummary, &p.ImageURL, &p.PublishedAt, &p.FetchedAt, &p.GUID, &p.CreatedAt, &p.FavoritedAt, &p.ReadLaterAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 // ListPostsByDate returns posts fetched during the UTC calendar day that
 // date falls on, newest published first. This is what a daily magazine
 // issue is built from - fetched_at is when we discovered the post, not
