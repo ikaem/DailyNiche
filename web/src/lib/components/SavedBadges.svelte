@@ -74,7 +74,11 @@
 		position: absolute;
 		top: 0.6rem;
 		right: 0.6rem;
-		z-index: 2;
+		/* Higher than PostHero/PostMedium's .content (z-index: 2) so a long
+		   real-world title/description that grows .content's box tall enough
+		   to reach this corner can never win the pointer-event stacking tie
+		   and swallow taps meant for these buttons. */
+		z-index: 5;
 	}
 	.badges.overlay.lg {
 		top: 0.75rem;
