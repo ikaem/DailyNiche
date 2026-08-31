@@ -608,6 +608,13 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
   - [ ] Document backup procedure
   - PR: "docs: add backup strategy" (optional)
 
+- [ ] TODO (added 2026-08-31, found while checking on the live deployment): **nothing that mutates data is protected by any auth.** `https://dailyniche.imkaem.xyz` is genuinely public (Cloudflare Tunnel -> Caddy -> `dailyniche-web:3000`, confirmed via `/srv/caddy/Caddyfile` and the tunnel's ingress rules) - the Go API itself isn't directly exposed (only reachable inside the Docker network / on the Pi's localhost), but every SvelteKit form action that talks to it is, with zero login of any kind. Concretely, anyone who finds the URL can today: add or delete feeds from the dashboard, trigger `POST /api/fetch` repeatedly, and toggle a post's favorite/read-later status on the Saved page (merged to master via #1, `feat/add-save-post`). None of this was a problem while the app only existed on localhost; it became one the moment Phase 9 put a public hostname in front of it.
+  - Not yet decided which approach - options actually worth weighing when this gets picked up:
+    - **Cloudflare Access** (Zero Trust) in front of the `dailyniche.imkaem.xyz` hostname - gates the whole site at Cloudflare's edge (email + one-time PIN, or just an allowlisted email), before a request ever reaches the Pi. Zero app code changes; already using this Cloudflare account/tunnel for everything else, so it's the least new surface to maintain.
+    - **Caddy `basicauth`** directly in the Caddyfile - one extra block, one shared password, no new service to trust. Cruder (one shared credential, no per-request revocation), but genuinely simple for a single-user app.
+    - **A real login in the SvelteKit app** - a session cookie + a login form. Most flexible, also the most to build and maintain (password storage/hashing, session expiry, brute-force handling) for a problem that a single user with a single set of credentials doesn't really have - probably overkill here.
+  - Leaning towards Cloudflare Access or Caddy basic auth over building real app-level auth, given this is a single-user personal tool, not a multi-user product - but not committed either way yet.
+
 ---
 
 ## Running Locally (Development)
