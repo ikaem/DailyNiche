@@ -22,7 +22,7 @@ describe('FeedDaysFilter.svelte', () => {
 
 		const daysInput = page.getByLabelText('Number of days');
 		await expect.element(daysInput).toBeDisabled();
-		await expect.element(daysInput).toHaveValue(1);
+		await expect.element(daysInput).toHaveValue(2);
 	});
 
 	it('enables the days input and persists the toggle when checked', async () => {

@@ -14,7 +14,7 @@
 	const STORAGE_KEY_ENABLED = 'feedDaysFilterEnabled';
 	const STORAGE_KEY_DAYS = 'feedDaysFilterDays';
 
-	let { enabled = $bindable(false), days = $bindable(1) }: { enabled?: boolean; days?: number } =
+	let { enabled = $bindable(false), days = $bindable(2) }: { enabled?: boolean; days?: number } =
 		$props();
 
 	// Runs once on mount, browser-only - localStorage doesn't exist during
