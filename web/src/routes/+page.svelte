@@ -1,16 +1,31 @@
 <script lang="ts">
 	import { toPostModel } from '$lib/postModel';
+	import { filterPostsByDaysBack } from '$lib/postFilters';
 	import DateNav from '$lib/components/DateNav.svelte';
+	import FeedDaysFilter from '$lib/components/FeedDaysFilter.svelte';
 	import AboveTheFold from '$lib/components/AboveTheFold.svelte';
 	import BelowTheFold from '$lib/components/BelowTheFold.svelte';
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	let posts = $derived(data.posts.map(toPostModel));
+	let feedDaysFilterEnabled = $state(false);
+	let feedDaysFilterDays = $state(1);
+
+	// Filtering (on raw Post[], before toPostModel drops publishedAt down to
+	// a display-only string - see postFilters.ts) happens here, once, rather
+	// than in AboveTheFold/BelowTheFold - both already just slice whatever
+	// array they're handed, so narrowing it upstream is all that's needed.
+	let posts = $derived(
+		(feedDaysFilterEnabled
+			? filterPostsByDaysBack(data.posts, data.date, feedDaysFilterDays)
+			: data.posts
+		).map(toPostModel)
+	);
 </script>
 
 <DateNav currentDate={data.date} />
+<FeedDaysFilter bind:enabled={feedDaysFilterEnabled} bind:days={feedDaysFilterDays} />
 
 <main>
 	{#if data.error}
