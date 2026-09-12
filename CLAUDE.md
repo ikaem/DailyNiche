@@ -601,11 +601,13 @@ This phase is optional and should only be done after Phase 8 is complete. Focus 
   - Log rotation: still not set up, per the original "optional, logs don't grow too fast for personal use" call - unchanged.
   - Documented in README's "Automating the Fetcher (Cron)" section, as a new "On the Raspberry Pi (Docker deployment)" subsection alongside the existing local (non-Docker) instructions.
 
-- [ ] **9.4: Backup strategy** (optional, 30 min)
-  - [ ] Decide: daily backup of SQLite to cloud storage (e.g., rsync to a backup server, or tar + upload)
-  - [ ] Create backup script
-  - [ ] Add cron entry to run backup daily
-  - [ ] Document backup procedure
+- [ ] **9.4: Backup strategy** (optional, 30 min) - **decided (2026-09-12): Cloudflare R2.** Currently zero backup coverage - the live production db (`/var/lib/docker/volumes/dailyniche_dailyniche-data/_data/dailyniche.db`, 1.6MB as of 2026-09-12) has never been backed up; `/srv/dailyniche.rsync-backup/` on the Pi looked promising but turned out to be an old deploy-source snapshot (api/, web/, docker-compose.yml) from July, not a data backup. Chosen destination: **Cloudflare R2** (S3-compatible object storage, 10GB free tier, no egress fees) over Backblaze B2 or a plain rsync target, since the Cloudflare account/tunnel is already set up for this Pi - least new infrastructure to trust. At this db size, storage cost is a non-issue either way.
+  - [ ] Create an R2 bucket + API token (dash.cloudflare.com -> R2 -> Manage API tokens) - gives an S3-compatible access key/secret, separate from the browser login used to just look at the bucket.
+  - [ ] Backup script: `sqlite3 <db> ".backup /tmp/x.db"` first (a live SQLite file shouldn't be copied directly while the app may be writing to it - `.backup` gives a consistent snapshot), then gzip, then upload via `rclone` (or `aws s3 cp` against R2's S3-compatible endpoint).
+  - [ ] Add a daily cron entry on the Pi to run it.
+  - [ ] Keep a rolling window (e.g. last ~30 daily backups) rather than overwriting a single file - cheap at this size, and avoids the single backup itself being a corrupted/bad snapshot with nothing to fall back to.
+  - [ ] Document the backup procedure (and restore procedure - untested restore isn't a real backup) in README or PI_SETUP.md.
+  - Same R2 bucket/account can be shared across projects (u_planine's own future backup need included) - not something to duplicate per-app, though u_planine's own backup TODO isn't scheduled yet.
   - PR: "docs: add backup strategy" (optional)
 
 - [ ] TODO (added 2026-08-31, found while checking on the live deployment): **nothing that mutates data is protected by any auth.** `https://dailyniche.imkaem.xyz` is genuinely public (Cloudflare Tunnel -> Caddy -> `dailyniche-web:3000`, confirmed via `/srv/caddy/Caddyfile` and the tunnel's ingress rules) - the Go API itself isn't directly exposed (only reachable inside the Docker network / on the Pi's localhost), but every SvelteKit form action that talks to it is, with zero login of any kind. Concretely, anyone who finds the URL can today: add or delete feeds from the dashboard, trigger `POST /api/fetch` repeatedly, and toggle a post's favorite/read-later status on the Saved page (merged to master via #1, `feat/add-save-post`). None of this was a problem while the app only existed on localhost; it became one the moment Phase 9 put a public hostname in front of it.
